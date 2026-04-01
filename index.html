@@ -124,14 +124,11 @@ const STAKE_MULT_BY_WEEKDAY = {
 };
 
 const STAKE_MULT_BY_DATE = {
-  "2026-02-06": 0.0,
-  "2026-03-04": 1.0,
-  "2026-03-11": 1.0,
-  "2026-03-18": 1.0,
-  "2026-03-25": 1.0
+  "2026-02-06": 0.0
 };
 
 const DEFAULT_STAKE_MULT = 1.0;
+const WED_NO_MULT_START_UTC = "2026-03-01"; // desde aquí, miércoles = 1.0
 
 // Thursday OFF a partir de esta fecha (UTC)
 const THU_OFF_START_UTC = "2026-02-01"; // YYYY-MM-DD
@@ -237,6 +234,11 @@ function stakeMultiplierForTsUTC(d){
   }
 
   const wd = weekdayNameUTC(d);
+
+  // Quitar multiplicador de miércoles a partir de marzo 2026
+  if(wd === "Wednesday" && dstr >= WED_NO_MULT_START_UTC){
+    return DEFAULT_STAKE_MULT;
+  }
 
   // Thursday OFF solo desde 2026-02-01 (UTC) en adelante
   // (comparación lexicográfica segura para YYYY-MM-DD)
