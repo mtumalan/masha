@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>P.E.L.U.S.A.</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <style>
+    :root{
+      --bg:#f3f5f8; --ink:#1f2937; --muted:#6b7280; --panel:#ffffff; --border:#d1d5db;
+      --good:#15803d; --bad:#b91c1c;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Helvetica,Arial,sans-serif}
+    .wrap{max-width:1000px;margin:32px auto;padding:0 16px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+    h1{font-size:18px;margin:0}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px}
+
+    .cal-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px}
+    .cal-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .cal-title h2{margin:0;font-size:15px}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:999px;background:#f8fafc;font-size:12px;color:var(--ink)}
+    .badge.positive{border-color:var(--good);color:var(--good)}
+    .badge.negative{border-color:var(--bad);color:var(--bad)}
+    button{background:#f8fafc;color:var(--ink);border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;cursor:pointer}
+    button:hover{background:#eef2f7}
+
+    .seg{display:inline-flex;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden}
+    .seg button{padding:6px 10px;border:0;background:#f8fafc}
+    .seg button.active{background:#e6ecf5;border-left:1px solid #cbd5e1;border-right:1px solid #cbd5e1}
+
+    .cal-scroll{overflow:auto; -webkit-overflow-scrolling:touch}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));gap:8px;min-width:630px}
+    .cal-dow{font-size:11px;color:var(--muted);text-align:center;padding:6px 0;position:sticky;top:0;background:var(--panel);z-index:1}
+
+    .day{background:#f3f4f6;border:1px solid var(--border);border-radius:12px;padding:10px;display:flex;flex-direction:column;aspect-ratio:1/1}
+    .day.other{opacity:.35}
+    .day .n{font-size:12px;color:var(--muted)}
+    .day .u{margin-top:auto;font-weight:700}
+
+    @media (max-width: 900px){
+      .wrap{padding:0 12px}
+      .cal-grid{grid-template-columns:repeat(7,minmax(70px,1fr));gap:6px;min-width:490px}
+      .day{aspect-ratio:1/1}
+    }
+    @media (max-width: 600px){
+      .cal-top{flex-direction:column;align-items:flex-start}
+      .cal-grid{grid-template-columns:repeat(7,minmax(56px,1fr));gap:5px;min-width:392px}
+      .day{padding:8px}
+      .day .n{font-size:11px}
+      .day .u{font-size:12px}
+      h1{font-size:16px}
+      .cal-title h2{font-size:14px}
+      .badge{font-size:11px;padding:5px 8px}
+      button{padding:6px 8px}
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>P.E.L.U.S.A.</h1>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span id="monthUnits" class="badge">Mes: — u</span>
+        <span id="monthTrades" class="badge">—</span>
+        <div class="seg" id="modeSeg">
+          <button data-mode="trade" class="active">Por trade</button>
+          <button data-mode="hour">Por hora</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="cal-top">
+        <div class="cal-title">
+          <button id="prevMonth">◀</button>
+          <h2 id="calTitle">—</h2>
+          <button id="nextMonth">▶</button>
+        </div>
+      </div>
+      <div class="cal-scroll"><div class="cal-grid" id="calGrid">
+        <div class="cal-dow">Lun</div>
+        <div class="cal-dow">Mar</div>
+        <div class="cal-dow">Mié</div>
+        <div class="cal-dow">Jue</div>
+        <div class="cal-dow">Vie</div>
+        <div class="cal-dow">Sáb</div>
+        <div class="cal-dow">Dom</div>
+      </div></div>
+    </section>
+
+    <div class="panel" style="padding:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; width:100%; margin-top:8px;">
+      <span class="badge">Bank (MXN)</span>
+      <input id="bankInput" type="number" inputmode="numeric" min="0" step="100"
+            value="0"
+            style="background:#f8fafc;color:var(--ink);border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;max-width:180px" />
+      <span id="clientPayout" class="badge">Payout mes: — MXN</span>
+    </div>
+  </div>
+
+<script>
+const META_CSV_PATH = 'data/meta.csv';
+const RESULTS_CSV_PATH = 'data/results.csv';
+
+const META_UNIT_USD = 200;
+const BASE_UNIT_USD = 150;
+const PAYOUT_UNIT_USD = 130;
+
+// Calculadora payout por componente:
+// - meta usa 200 por cada 10k
+// - results usa la tarifa de INDEX
+const CLIENT_MXN_META_PER_10K = 200;
+const CLIENT_MXN_BASE_PER_10K = 150;
+
+const META_PAYOUT_FACTOR_BY_COIN = {
+  BTCUSDT: 0.885,
+  ETHUSDT: 0.885,
+  XRPUSDT: 0.851,
+  SOLUSDT: 0.851,
+};
+const BASE_PAYOUT_FACTOR = 0.885;
+
+const $$=(s,r=document)=>r.querySelector(s);
+const fmtNum=(n)=> new Intl.NumberFormat('es-MX',{maximumFractionDigits:2}).format(n);
+
+let ROWS = [];
+let CAL_CURRENT = null;
+let MODE = 'trade';
+
+function toNumber(x){
+  if(x===null||x===undefined||x==='') return null;
+  if(typeof x === 'string'){
+    const t=x.trim().toLowerCase();
+    if(t==='-inf'||t==='inf'||t==='infinity'||t==='-infinity'||t==='nan') return null;
+  }
+  const n=Number(x);
+  return Number.isFinite(n)? n : null;
+}
+
+function parseTsAsUTC(x){
+  if(x == null) return new Date(NaN);
+  if(typeof x === 'number') return new Date(x);
+  const s = String(x).trim();
+  if(/[zZ]|[+\-]\d{2}:?\d{2}$/.test(s)) return new Date(s);
+  return new Date(s.replace(' ', 'T') + 'Z');
+}
+
+function detectDateCol(cols){
+  const guess=['timestamp','ts','date','datetime'];
+  const lower=cols.map(c=>c.toLowerCase());
+  for(const g of guess){
+    const idx=lower.indexOf(g);
+    if(idx!==-1) return cols[idx];
+  }
+  return cols[0];
+}
+
+function listCoinsByPrefix(headers, prefix){
+  const out = new Set();
+  for(const h of headers){
+    if(h.startsWith(prefix)) out.add(h.slice(prefix.length));
+  }
+  return [...out].sort();
+}
+
+function hourISOFromDateUTC(d){
+  return new Date(Date.UTC(
+    d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours()
+  )).toISOString();
+}
+
+function isDroppedMondayFirstHourUTC(d){
+  return (d.getUTCDay() === 1) && (d.getUTCHours() === 0);
+}
+
+function getBankMXN(){
+  const el = $$('#bankInput');
+  if(!el) return 0;
+  const v = Number(el.value);
+  return Number.isFinite(v) && v >= 0 ? v : 0;
+}
+
+function clientPayoutMXN(metaUnits, baseUnits150, bankMXN){
+  const scale = bankMXN / 10000.0;
+  return ((metaUnits * CLIENT_MXN_META_PER_10K) + (baseUnits150 * CLIENT_MXN_BASE_PER_10K)) * scale;
+}
+
+function updateClientPayoutBadge(monthMetaUnits, monthBaseUnits150){
+  const el = $$('#clientPayout');
+  if(!el) return;
+
+  const payout = clientPayoutMXN(monthMetaUnits, monthBaseUnits150, getBankMXN());
+  const sign = payout > 0 ? '+' : '';
+
+  el.textContent = `Payout mes: ${sign}${new Intl.NumberFormat('es-MX',{maximumFractionDigits:0}).format(payout)} MXN`;
+  el.classList.toggle('positive', payout > 0);
+  el.classList.toggle('negative', payout < 0);
+}
+
+function mapRowsByHour(rawRows){
+  if(!rawRows?.length) return new Map();
+  const headers = Object.keys(rawRows[0]);
+  const dateCol = detectDateCol(headers);
+  const out = new Map();
+
+  for(const r of rawRows){
+    const t = parseTsAsUTC(r[dateCol]);
+    if(isNaN(t)) continue;
+    out.set(hourISOFromDateUTC(t), r);
+  }
+  return out;
+}
+
+function normalizeSignal(x){
+  const s = (toNumber(x) ?? 0) | 0;
+  if(s !== -1 && s !== 0 && s !== 1) return 0;
+  return s;
+}
+
+function normalizeActual(x){
+  const a = (toNumber(x) ?? 0) | 0;
+  if(a !== -1 && a !== 1) return 0;
+  return a;
+}
+
+function computePnlFromSignals(row, coins, unitUsd, stakeMult, profitFactorFn){
+  let pnl = 0;
+  let trades = 0;
+
+  for(const c of coins){
+    const signal = normalizeSignal(row['signal_' + c]);
+    const actual = normalizeActual(row['actual_' + c]);
+    if(signal === 0) continue;
+
+    trades += 1;
+    const hit = signal === actual;
+    const profitF = profitFactorFn(c);
+    pnl += hit ? (unitUsd * stakeMult * profitF) : (-unitUsd * stakeMult);
+  }
+
+  return { pnl, trades };
+}
+
+function buildConglomerateRows(metaRaw, resultsRaw){
+  if(!metaRaw?.length || !resultsRaw?.length) return [];
+
+  const metaHeaders = Object.keys(metaRaw[0]);
+  const resultsHeaders = Object.keys(resultsRaw[0]);
+
+  const metaCoins = listCoinsByPrefix(metaHeaders, 'signal_');
+  const resultsCoins = listCoinsByPrefix(resultsHeaders, 'signal_');
+
+  const metaMap = mapRowsByHour(metaRaw);
+  const resultsMap = mapRowsByHour(resultsRaw);
+
+  const commonHours = [...metaMap.keys()]
+    .filter(h => resultsMap.has(h))
+    .sort((a,b)=> (a < b ? -1 : a > b ? 1 : 0));
+
+  const out = [];
+  for(const h of commonHours){
+    const t = new Date(h);
+    if(isNaN(t)) continue;
+    if(isDroppedMondayFirstHourUTC(t)) continue;
+
+    const metaRow = metaMap.get(h);
+    const resultsRow = resultsMap.get(h);
+
+    const stakeMult = toNumber(metaRow['stake_mult']);
+    if(!Number.isFinite(stakeMult)) continue;
+
+    const metaCalc = computePnlFromSignals(
+      metaRow,
+      metaCoins,
+      META_UNIT_USD,
+      stakeMult,
+      (coin)=> Number(META_PAYOUT_FACTOR_BY_COIN[coin] ?? 0.885)
+    );
+
+    const baseCalc = computePnlFromSignals(
+      resultsRow,
+      resultsCoins,
+      BASE_UNIT_USD,
+      stakeMult,
+      ()=> BASE_PAYOUT_FACTOR
+    );
+
+    const metaUnits = metaCalc.pnl / META_UNIT_USD;
+    const baseUnits150 = baseCalc.pnl / BASE_UNIT_USD;
+    const baseUnitsEq200 = baseUnits150 * (BASE_UNIT_USD / PAYOUT_UNIT_USD);
+
+    out.push({
+      tsISO: t.toISOString(),
+      hourISO: h,
+      u_total: metaUnits + baseUnitsEq200,
+      trades: metaCalc.trades + baseCalc.trades,
+      u_meta: metaUnits,
+      u_base_150: baseUnits150,
+      u_base_eq200: baseUnitsEq200,
+    });
+  }
+
+  return out;
+}
+
+function summarizeByDayHours(rows){
+  const byDay = new Map();
+  for(const r of rows){
+    const d = new Date(r.tsISO);
+    const key = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString().slice(0,10);
+    const o = byDay.get(key) || {u:0, u_meta:0, u_base_150:0, hours:0, trades:0};
+    o.u += r.u_total;
+    o.u_meta += r.u_meta;
+    o.u_base_150 += r.u_base_150;
+    o.hours += 1;
+    o.trades += r.trades;
+    byDay.set(key, o);
+  }
+  return byDay;
+}
+
+function renderCalendar(){
+  if(!CAL_CURRENT){
+    const grid=$$('#calGrid');
+    if(grid) grid.innerHTML='';
+    updateClientPayoutBadge(0, 0);
+    return 0;
+  }
+
+  const year=CAL_CURRENT.getUTCFullYear(), month=CAL_CURRENT.getUTCMonth();
+  const first=new Date(Date.UTC(year,month,1));
+  const dow=first.getUTCDay();
+  const offset=(dow===0?-6:1-dow);
+  const start=new Date(Date.UTC(year,month,1+offset));
+
+  const byDay = summarizeByDayHours(ROWS);
+
+  const titleEl = $$('#calTitle');
+  if(titleEl){
+    titleEl.textContent = new Intl.DateTimeFormat('es-MX',{month:'long',year:'numeric',timeZone:'UTC'}).format(first);
+  }
+
+  let monthUnits=0, monthCount=0, monthMetaUnits=0, monthBaseUnits150=0;
+  const rightLabel = (MODE === 'trade') ? 'Trades' : 'Horas';
+
+  const grid=$$('#calGrid');
+  if(!grid){
+    updateClientPayoutBadge(0, 0);
+    return 0;
+  }
+
+  grid.innerHTML=`<div class="cal-dow">Lun</div><div class="cal-dow">Mar</div><div class="cal-dow">Mié</div><div class="cal-dow">Jue</div><div class="cal-dow">Vie</div><div class="cal-dow">Sáb</div><div class="cal-dow">Dom</div>`;
+
+  const daysInMonth=new Date(Date.UTC(year,month+1,0)).getUTCDate();
+  const vals=[];
+  for(let d=1; d<=daysInMonth; d++){
+    const key=new Date(Date.UTC(year,month,d)).toISOString().slice(0,10);
+    const rec=byDay.get(key);
+    vals.push(Math.abs(rec?.u||0));
+  }
+  const maxAbs=Math.max(0,...vals);
+
+  for(let i=0;i<42;i++){
+    const d=new Date(Date.UTC(start.getUTCFullYear(),start.getUTCMonth(),start.getUTCDate()+i));
+    const key=d.toISOString().slice(0,10);
+    const inMonth=d.getUTCMonth()===month;
+    const rec=byDay.get(key) || {u:0,u_meta:0,u_base_150:0,hours:0,trades:0};
+
+    if(inMonth){
+      monthUnits += rec.u;
+      monthMetaUnits += rec.u_meta;
+      monthBaseUnits150 += rec.u_base_150;
+      monthCount += (MODE === 'trade') ? rec.trades : rec.hours;
+    }
+
+    const u=rec.u;
+    const alpha=maxAbs>0? (0.18+0.72*Math.min(1,Math.abs(u)/maxAbs)) : 0;
+
+    let bg, border;
+    if(u>0){ bg=`rgba(21,128,61,${alpha})`; border='rgba(21,128,61,.78)'; }
+    else if(u<0){ bg=`rgba(185,28,28,${alpha})`; border='rgba(185,28,28,.78)'; }
+    else { bg='#f3f4f6'; border='var(--border)'; }
+
+    const div=document.createElement('div');
+    div.className='day'+(inMonth?'':' other');
+    div.style.background = u===0 ? bg : `linear-gradient(180deg, ${bg}, rgba(0,0,0,.08))`;
+    div.style.borderColor = border;
+    div.innerHTML = `<div class="n">${d.getUTCDate()}</div><div class="u">${u>0? '+'+fmtNum(u): (u<0? fmtNum(u): '—')} u</div>`;
+    grid.appendChild(div);
+  }
+
+  const mu=$$('#monthUnits');
+  if(mu){
+    mu.textContent = `Mes: ${monthUnits>0? '+'+fmtNum(monthUnits): fmtNum(monthUnits)} u`;
+    mu.classList.toggle('positive', monthUnits>0);
+    mu.classList.toggle('negative', monthUnits<0);
+  }
+
+  const mt=$$('#monthTrades');
+  if(mt){
+    mt.textContent = `${rightLabel}: ${new Intl.NumberFormat('es-MX').format(monthCount)}`;
+  }
+
+  updateClientPayoutBadge(monthMetaUnits, monthBaseUnits150);
+  return monthUnits;
+}
+
+function loadCSV(path){
+  return new Promise((res,rej)=>{
+    Papa.parse(path,{
+      header:true, dynamicTyping:true, download:true, skipEmptyLines:true,
+      complete:(o)=>res(o.data), error:(e)=>rej(e)
+    });
+  });
+}
+
+(async()=>{
+  try{
+    const [metaRaw, resultsRaw] = await Promise.all([
+      loadCSV(META_CSV_PATH),
+      loadCSV(RESULTS_CSV_PATH),
+    ]);
+
+    if(!metaRaw?.length) throw new Error('meta.csv vacío');
+    if(!resultsRaw?.length) throw new Error('results.csv vacío');
+
+    ROWS = buildConglomerateRows(metaRaw, resultsRaw);
+    if(!ROWS.length) throw new Error('Sin filas útiles para el conglomerado');
+
+    const dLast = new Date(ROWS[ROWS.length - 1].tsISO);
+    CAL_CURRENT = new Date(Date.UTC(dLast.getUTCFullYear(), dLast.getUTCMonth(), 1));
+
+    renderCalendar();
+  }catch(e){
+    console.error(e);
+  }
+})();
+
+$$('#prevMonth')?.addEventListener('click', ()=>{
+  if(!CAL_CURRENT) return;
+  CAL_CURRENT = new Date(Date.UTC(CAL_CURRENT.getUTCFullYear(), CAL_CURRENT.getUTCMonth()-1, 1));
+  renderCalendar();
+});
+
+$$('#nextMonth')?.addEventListener('click', ()=>{
+  if(!CAL_CURRENT) return;
+  CAL_CURRENT = new Date(Date.UTC(CAL_CURRENT.getUTCFullYear(), CAL_CURRENT.getUTCMonth()+1, 1));
+  renderCalendar();
+});
+
+$$('#bankInput')?.addEventListener('input', ()=> renderCalendar());
+
+document.querySelectorAll('#modeSeg button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    MODE = btn.dataset.mode;
+    renderCalendar();
+  });
+});
+</script>
+
+</body>
+</html>
