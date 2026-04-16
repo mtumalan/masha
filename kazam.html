@@ -118,7 +118,10 @@ const TH = {
 };
 
 const UNIT     = 50;     // USD por unidad (stake base)
-const PROFIT_F = 0.885;  // payout
+const PROFIT_F = 0.885;  // payout base
+const XRP_PAYOUT_START_UTC = "2026-04-16"; // desde aquí XRP usa payout/threshold nuevos
+const XRP_PROFIT_F = 0.851;
+const XRP_THRESHOLD_F = 0.52217;
 
 // Stake rules (prioridad: fecha exacta > weekday)
 const STAKE_MULT_BY_WEEKDAY = {
@@ -227,6 +230,24 @@ function weekdayNameUTC(d){
   return new Intl.DateTimeFormat('en-US',{weekday:'long',timeZone:'UTC'}).format(d);
 }
 
+function profitFactorForCoinAtTsUTC(coin, d){
+  const dstr = ymdUTC(d);
+  if(coin === "XRPUSDT" && dstr >= XRP_PAYOUT_START_UTC){
+    return XRP_PROFIT_F;
+  }
+  return PROFIT_F;
+}
+
+function thresholdForCoinAtTsUTC(coin, d){
+  const baseTh = TH[coin];
+  if(baseTh === undefined) return undefined;
+  const dstr = ymdUTC(d);
+  if(coin === "XRPUSDT" && dstr >= XRP_PAYOUT_START_UTC){
+    return XRP_THRESHOLD_F;
+  }
+  return baseTh;
+}
+
 function stakeMultiplierForTsUTC(d){
   const dstr = ymdUTC(d);
 
@@ -289,8 +310,9 @@ function buildRowsLikePython(rawRows, dateCol){
       const actual = (actRaw === null ? 0 : (actRaw|0));
 
       let signal;
-      if((('prob_up_'+c) in r || ('prob_down_'+c) in r) && (TH[c] !== undefined)){
-        signal = computeSignal(probUp, probDown, TH[c]);
+      const th = thresholdForCoinAtTsUTC(c, t);
+      if((('prob_up_'+c) in r || ('prob_down_'+c) in r) && (th !== undefined)){
+        signal = computeSignal(probUp, probDown, th);
       } else {
         const sigRaw = toNumber(r['signal_'+c]);
         signal = (sigRaw === null ? 0 : (sigRaw|0));
@@ -299,7 +321,8 @@ function buildRowsLikePython(rawRows, dateCol){
 
       const hit = (signal !== 0) && (signal === actual);
 
-      const win_amt  = UNIT * stake_mult * PROFIT_F;
+      const profitF = profitFactorForCoinAtTsUTC(c, t);
+      const win_amt  = UNIT * stake_mult * profitF;
       const lose_amt = -UNIT * stake_mult;
 
       const pnl_usd = (signal === 0) ? 0 : (hit ? win_amt : lose_amt);
