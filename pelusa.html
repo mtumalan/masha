@@ -105,15 +105,15 @@
 const META_CSV_PATH = 'data/meta.csv';
 const RESULTS_CSV_PATH = 'data/results.csv';
 
-const META_UNIT_USD = 200;
-const BASE_UNIT_USD = 150;
+const META_UNIT_USD = 150;
+const BASE_UNIT_USD = 80;
 const PAYOUT_UNIT_USD = 130;
 
 // Calculadora payout por componente:
 // - meta usa 200 por cada 10k
 // - results usa la tarifa de INDEX
-const CLIENT_MXN_META_PER_10K = 200;
-const CLIENT_MXN_BASE_PER_10K = 150;
+const CLIENT_MXN_META_PER_10K = 150;
+const CLIENT_MXN_BASE_PER_10K = 80;
 
 const META_PAYOUT_FACTOR_BY_COIN = {
   BTCUSDT: 0.885,
@@ -122,6 +122,22 @@ const META_PAYOUT_FACTOR_BY_COIN = {
   SOLUSDT: 0.851,
 };
 const BASE_PAYOUT_FACTOR = 0.885;
+
+// Mismo cálculo de multiplicador de stake que index/kazam.
+STAKE_MULT_BY_WEEKDAY = {
+    "Monday":    0.0,
+    "Tuesday":   1.5,
+    "Wednesday": 1.0,
+    "Thursday":  0.0,
+    "Friday":    1.0,
+    "Saturday":  1.75,
+    "Sunday":    1.75,
+}
+const STAKE_MULT_BY_DATE = {
+};
+const DEFAULT_STAKE_MULT = 1.0;
+const WED_NO_MULT_START_UTC = "";
+const THU_OFF_START_UTC = "";
 
 const $$=(s,r=document)=>r.querySelector(s);
 const fmtNum=(n)=> new Intl.NumberFormat('es-MX',{maximumFractionDigits:2}).format(n);
@@ -166,6 +182,15 @@ function listCoinsByPrefix(headers, prefix){
   return [...out].sort();
 }
 
+function ymdUTC(d){
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+    .toISOString().slice(0,10);
+}
+
+function weekdayNameUTC(d){
+  return new Intl.DateTimeFormat('en-US',{weekday:'long',timeZone:'UTC'}).format(d);
+}
+
 function hourISOFromDateUTC(d){
   return new Date(Date.UTC(
     d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours()
@@ -174,6 +199,26 @@ function hourISOFromDateUTC(d){
 
 function isDroppedMondayFirstHourUTC(d){
   return (d.getUTCDay() === 1) && (d.getUTCHours() === 0);
+}
+
+function stakeMultiplierForTsUTC(d){
+  const dstr = ymdUTC(d);
+
+  if(Object.prototype.hasOwnProperty.call(STAKE_MULT_BY_DATE, dstr)){
+    return Number(STAKE_MULT_BY_DATE[dstr]);
+  }
+
+  const wd = weekdayNameUTC(d);
+
+  if(wd === "Wednesday" && dstr >= WED_NO_MULT_START_UTC){
+    return DEFAULT_STAKE_MULT;
+  }
+
+  if(wd === "Thursday" && dstr >= THU_OFF_START_UTC){
+    return 0.0;
+  }
+
+  return Number(STAKE_MULT_BY_WEEKDAY[wd] ?? DEFAULT_STAKE_MULT);
 }
 
 function getBankMXN(){
@@ -269,14 +314,16 @@ function buildConglomerateRows(metaRaw, resultsRaw){
     const metaRow = metaMap.get(h);
     const resultsRow = resultsMap.get(h);
 
-    const stakeMult = toNumber(metaRow['stake_mult']);
-    if(!Number.isFinite(stakeMult)) continue;
+    const stakeMultMeta = toNumber(metaRow['stake_mult']);
+    const stakeMultBase = stakeMultiplierForTsUTC(t);
+    if(!Number.isFinite(stakeMultBase)) continue;
+    if(!Number.isFinite(stakeMultMeta)) continue;
 
     const metaCalc = computePnlFromSignals(
       metaRow,
       metaCoins,
       META_UNIT_USD,
-      stakeMult,
+      stakeMultMeta,
       (coin)=> Number(META_PAYOUT_FACTOR_BY_COIN[coin] ?? 0.885)
     );
 
@@ -284,7 +331,7 @@ function buildConglomerateRows(metaRaw, resultsRaw){
       resultsRow,
       resultsCoins,
       BASE_UNIT_USD,
-      stakeMult,
+      stakeMultBase,
       ()=> BASE_PAYOUT_FACTOR
     );
 
