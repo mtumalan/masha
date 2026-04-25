@@ -146,6 +146,8 @@ let ROWS = [];
 let CAL_CURRENT = null;
 let MODE = 'trade';
 
+const CSV_AUTO_REFRESH_MS = 60 * 1000;
+
 function toNumber(x){
   if(x===null||x===undefined||x==='') return null;
   if(typeof x === 'string'){
@@ -290,10 +292,10 @@ function computePnlFromSignals(row, coins, unitUsd, stakeMult, profitFactorFn){
 }
 
 function buildConglomerateRows(metaRaw, resultsRaw){
-  if(!metaRaw?.length || !resultsRaw?.length) return [];
+  if(!metaRaw?.length && !resultsRaw?.length) return [];
 
-  const metaHeaders = Object.keys(metaRaw[0]);
-  const resultsHeaders = Object.keys(resultsRaw[0]);
+  const metaHeaders = metaRaw?.length ? Object.keys(metaRaw[0]) : [];
+  const resultsHeaders = resultsRaw?.length ? Object.keys(resultsRaw[0]) : [];
 
   const metaCoins = listCoinsByPrefix(metaHeaders, 'signal_');
   const resultsCoins = listCoinsByPrefix(resultsHeaders, 'signal_');
@@ -301,39 +303,46 @@ function buildConglomerateRows(metaRaw, resultsRaw){
   const metaMap = mapRowsByHour(metaRaw);
   const resultsMap = mapRowsByHour(resultsRaw);
 
-  const commonHours = [...metaMap.keys()]
-    .filter(h => resultsMap.has(h))
+  const allHours = [...new Set([...metaMap.keys(), ...resultsMap.keys()])]
     .sort((a,b)=> (a < b ? -1 : a > b ? 1 : 0));
 
   const out = [];
-  for(const h of commonHours){
+  for(const h of allHours){
     const t = new Date(h);
     if(isNaN(t)) continue;
     if(isDroppedMondayFirstHourUTC(t)) continue;
 
     const metaRow = metaMap.get(h);
     const resultsRow = resultsMap.get(h);
+    if(!metaRow && !resultsRow) continue;
 
-    const stakeMultMeta = toNumber(metaRow['stake_mult']);
-    const stakeMultBase = stakeMultiplierForTsUTC(t);
-    if(!Number.isFinite(stakeMultBase)) continue;
-    if(!Number.isFinite(stakeMultMeta)) continue;
+    let metaCalc = { pnl: 0, trades: 0 };
+    if(metaRow){
+      const stakeMultMeta = toNumber(metaRow['stake_mult']);
+      if(Number.isFinite(stakeMultMeta)){
+        metaCalc = computePnlFromSignals(
+          metaRow,
+          metaCoins,
+          META_UNIT_USD,
+          stakeMultMeta,
+          (coin)=> Number(META_PAYOUT_FACTOR_BY_COIN[coin] ?? 0.885)
+        );
+      }
+    }
 
-    const metaCalc = computePnlFromSignals(
-      metaRow,
-      metaCoins,
-      META_UNIT_USD,
-      stakeMultMeta,
-      (coin)=> Number(META_PAYOUT_FACTOR_BY_COIN[coin] ?? 0.885)
-    );
-
-    const baseCalc = computePnlFromSignals(
-      resultsRow,
-      resultsCoins,
-      BASE_UNIT_USD,
-      stakeMultBase,
-      ()=> BASE_PAYOUT_FACTOR
-    );
+    let baseCalc = { pnl: 0, trades: 0 };
+    if(resultsRow){
+      const stakeMultBase = stakeMultiplierForTsUTC(t);
+      if(Number.isFinite(stakeMultBase)){
+        baseCalc = computePnlFromSignals(
+          resultsRow,
+          resultsCoins,
+          BASE_UNIT_USD,
+          stakeMultBase,
+          ()=> BASE_PAYOUT_FACTOR
+        );
+      }
+    }
 
     const metaUnits = metaCalc.pnl / META_UNIT_USD;
     const baseUnits150 = baseCalc.pnl / BASE_UNIT_USD;
@@ -457,34 +466,44 @@ function renderCalendar(){
 
 function loadCSV(path){
   return new Promise((res,rej)=>{
-    Papa.parse(path,{
+    const sep = path.includes('?') ? '&' : '?';
+    const noCachePath = `${path}${sep}_ts=${Date.now()}`;
+    Papa.parse(noCachePath,{
       header:true, dynamicTyping:true, download:true, skipEmptyLines:true,
       complete:(o)=>res(o.data), error:(e)=>rej(e)
     });
   });
 }
 
-(async()=>{
+async function refreshData({ keepMonth = true } = {}){
   try{
+    const previousMonth = keepMonth && CAL_CURRENT ? new Date(CAL_CURRENT.getTime()) : null;
     const [metaRaw, resultsRaw] = await Promise.all([
       loadCSV(META_CSV_PATH),
       loadCSV(RESULTS_CSV_PATH),
     ]);
 
-    if(!metaRaw?.length) throw new Error('meta.csv vacío');
-    if(!resultsRaw?.length) throw new Error('results.csv vacío');
+    if(!metaRaw?.length && !resultsRaw?.length){
+      throw new Error('meta.csv y results.csv vacíos');
+    }
 
-    ROWS = buildConglomerateRows(metaRaw, resultsRaw);
-    if(!ROWS.length) throw new Error('Sin filas útiles para el conglomerado');
+    const nextRows = buildConglomerateRows(metaRaw, resultsRaw);
+    if(!nextRows.length) throw new Error('Sin filas útiles para el conglomerado');
+    ROWS = nextRows;
 
     const dLast = new Date(ROWS[ROWS.length - 1].tsISO);
-    CAL_CURRENT = new Date(Date.UTC(dLast.getUTCFullYear(), dLast.getUTCMonth(), 1));
+    CAL_CURRENT = previousMonth
+      ? previousMonth
+      : new Date(Date.UTC(dLast.getUTCFullYear(), dLast.getUTCMonth(), 1));
 
     renderCalendar();
   }catch(e){
     console.error(e);
   }
-})();
+}
+
+refreshData({ keepMonth: false });
+setInterval(()=>{ refreshData({ keepMonth: true }); }, CSV_AUTO_REFRESH_MS);
 
 $$('#prevMonth')?.addEventListener('click', ()=>{
   if(!CAL_CURRENT) return;
