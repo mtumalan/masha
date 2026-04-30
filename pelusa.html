@@ -64,6 +64,10 @@
     <header>
       <h1>P.E.L.U.S.A.</h1>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label class="badge" style="cursor:pointer; user-select:none;">
+          <input id="monThuOnToggle" type="checkbox" style="margin:0 8px 0 0; transform: translateY(1px);" />
+          Lunes/Jueves ON
+        </label>
         <span id="monthUnits" class="badge">Mes: — u</span>
         <span id="monthTrades" class="badge">—</span>
         <div class="seg" id="modeSeg">
@@ -162,11 +166,14 @@ const RESULTS_STAKE_MULT_BY_DATE = {
 const RESULTS_DEFAULT_STAKE_MULT = 1.0;
 const RESULTS_WED_NO_MULT_START_UTC = null;
 const RESULTS_THU_OFF_START_UTC = "";
+let MON_THU_ON_ENABLED = false;
 
 const $$=(s,r=document)=>r.querySelector(s);
 const fmtNum=(n)=> new Intl.NumberFormat('es-MX',{maximumFractionDigits:2}).format(n);
 
 let ROWS = [];
+let META_RAW = [];
+let RESULTS_RAW = [];
 let CAL_CURRENT = null;
 let MODE = 'trade';
 
@@ -233,6 +240,10 @@ function stakeMultiplierForTsUTC(d, config){
   }
 
   const wd = weekdayNameUTC(d);
+
+  if(MON_THU_ON_ENABLED && (wd === "Monday" || wd === "Thursday")){
+    return Number(config.defaultStakeMult);
+  }
 
   if(config.wedNoMultStartUTC && wd === "Wednesday" && dstr >= config.wedNoMultStartUTC){
     return config.defaultStakeMult;
@@ -542,6 +553,12 @@ function loadCSV(path){
   });
 }
 
+function rebuildRowsFromLoaded(){
+  if(!META_RAW?.length || !RESULTS_RAW?.length) return;
+  ROWS = buildConglomerateRows(META_RAW, RESULTS_RAW);
+  renderCalendar();
+}
+
 (async()=>{
   try{
     const [metaRaw, resultsRaw] = await Promise.all([
@@ -552,7 +569,9 @@ function loadCSV(path){
     if(!metaRaw?.length) throw new Error('meta.csv vacío');
     if(!resultsRaw?.length) throw new Error('results.csv vacío');
 
-    ROWS = buildConglomerateRows(metaRaw, resultsRaw);
+    META_RAW = metaRaw;
+    RESULTS_RAW = resultsRaw;
+    ROWS = buildConglomerateRows(META_RAW, RESULTS_RAW);
     if(!ROWS.length) throw new Error('Sin filas útiles para el conglomerado');
 
     const dLast = new Date(ROWS[ROWS.length - 1].tsISO);
@@ -586,6 +605,23 @@ document.querySelectorAll('#modeSeg button').forEach(btn=>{
     renderCalendar();
   });
 });
+
+// --- Toggle Lunes/Jueves ON ---
+(function initMonThuToggle(){
+  const el = $$('#monThuOnToggle');
+  if(!el) return;
+
+  const saved = localStorage.getItem('pelusa_mon_thu_on_enabled');
+  MON_THU_ON_ENABLED = (saved === null) ? false : (saved === '1');
+
+  el.checked = MON_THU_ON_ENABLED;
+
+  el.addEventListener('change', ()=>{
+    MON_THU_ON_ENABLED = !!el.checked;
+    localStorage.setItem('pelusa_mon_thu_on_enabled', MON_THU_ON_ENABLED ? '1' : '0');
+    rebuildRowsFromLoaded();
+  });
+})();
 </script>
 
 </body>
