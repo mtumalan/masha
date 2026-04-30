@@ -105,15 +105,19 @@
 const META_CSV_PATH = 'data/meta.csv';
 const RESULTS_CSV_PATH = 'data/results.csv';
 
-const META_UNIT_USD = 81;
-const BASE_UNIT_USD = 45;
-const PAYOUT_UNIT_USD = 70;
+const PELUSA_PAYOUT_UNIT_USD = 137;
+const DUMBO_PAYOUT_UNIT_USD = 70;
+const DUMBO_TO_PELUSA_UNIT_RATIO = DUMBO_PAYOUT_UNIT_USD / PELUSA_PAYOUT_UNIT_USD;
+
+const META_UNIT_USD = 200 * DUMBO_TO_PELUSA_UNIT_RATIO;
+const BASE_UNIT_USD = 130 * DUMBO_TO_PELUSA_UNIT_RATIO;
+const PAYOUT_UNIT_USD = DUMBO_PAYOUT_UNIT_USD;
 
 // Calculadora payout por componente:
 // - meta usa 200 por cada 10k
 // - results usa la tarifa de INDEX
-const CLIENT_MXN_META_PER_10K = 81;
-const CLIENT_MXN_BASE_PER_10K = 45;
+const CLIENT_MXN_META_PER_10K = 200 * DUMBO_TO_PELUSA_UNIT_RATIO;
+const CLIENT_MXN_BASE_PER_10K = 130 * DUMBO_TO_PELUSA_UNIT_RATIO;
 
 const META_PAYOUT_FACTOR_BY_COIN = {
   BTCUSDT: 0.885,
@@ -121,23 +125,48 @@ const META_PAYOUT_FACTOR_BY_COIN = {
   XRPUSDT: 0.851,
   SOLUSDT: 0.851,
 };
-const BASE_PAYOUT_FACTOR = 0.885;
+const BASE_PAYOUT_FACTOR_BY_COIN = {
+  BTCUSDT: 0.885,
+  ETHUSDT: 0.885,
+  XRPUSDT: 0.885,
+};
+const RESULTS_SIGNAL_THRESHOLD_BY_COIN = {
+  BTCUSDT: 0.51599,
+  ETHUSDT: 0.509294,
+  XRPUSDT: 0.52217,
+};
+const RESULTS_XRP_SIGNAL_START_UTC = "2026-04-16";
+const RESULTS_XRP_SIGNAL_THRESHOLD = 0.52217;
 
-// Mismo cálculo de multiplicador de stake que index/kazam.
-STAKE_MULT_BY_WEEKDAY = {
+const META_STAKE_MULT_BY_WEEKDAY = {
     "Monday":    0.0,
-    "Tuesday":   1.5,
+    "Tuesday":   1.0,
+    "Wednesday": 2.25,
+    "Thursday":  0.0,
+    "Friday":    1.0,
+    "Saturday":  2.25,
+    "Sunday":    1.0,
+}
+const META_STAKE_MULT_BY_DATE = {
+};
+const META_DEFAULT_STAKE_MULT = 1.0;
+const META_WED_NO_MULT_START_UTC = "";
+const META_THU_OFF_START_UTC = "";
+
+const RESULTS_STAKE_MULT_BY_WEEKDAY = {
+    "Monday":    0.0,
+    "Tuesday":   2.25,
     "Wednesday": 1.0,
     "Thursday":  0.0,
     "Friday":    1.0,
-    "Saturday":  1.75,
-    "Sunday":    1.75,
+    "Saturday":  2.25,
+    "Sunday":    1.0,
 }
-const STAKE_MULT_BY_DATE = {
+const RESULTS_STAKE_MULT_BY_DATE = {
 };
-const DEFAULT_STAKE_MULT = 1.0;
-const WED_NO_MULT_START_UTC = "";
-const THU_OFF_START_UTC = "";
+const RESULTS_DEFAULT_STAKE_MULT = 1.0;
+const RESULTS_WED_NO_MULT_START_UTC = "";
+const RESULTS_THU_OFF_START_UTC = "";
 
 const $$=(s,r=document)=>r.querySelector(s);
 const fmtNum=(n)=> new Intl.NumberFormat('es-MX',{maximumFractionDigits:2}).format(n);
@@ -203,24 +232,44 @@ function isDroppedMondayFirstHourUTC(d){
   return (d.getUTCDay() === 1) && (d.getUTCHours() === 0);
 }
 
-function stakeMultiplierForTsUTC(d){
+function stakeMultiplierForTsUTC(d, config){
   const dstr = ymdUTC(d);
 
-  if(Object.prototype.hasOwnProperty.call(STAKE_MULT_BY_DATE, dstr)){
-    return Number(STAKE_MULT_BY_DATE[dstr]);
+  if(Object.prototype.hasOwnProperty.call(config.byDate, dstr)){
+    return Number(config.byDate[dstr]);
   }
 
   const wd = weekdayNameUTC(d);
 
-  if(wd === "Wednesday" && dstr >= WED_NO_MULT_START_UTC){
-    return DEFAULT_STAKE_MULT;
+  if(wd === "Wednesday" && dstr >= config.wedNoMultStartUTC){
+    return config.defaultStakeMult;
   }
 
-  if(wd === "Thursday" && dstr >= THU_OFF_START_UTC){
+  if(wd === "Thursday" && dstr >= config.thuOffStartUTC){
     return 0.0;
   }
 
-  return Number(STAKE_MULT_BY_WEEKDAY[wd] ?? DEFAULT_STAKE_MULT);
+  return Number(config.byWeekday[wd] ?? config.defaultStakeMult);
+}
+
+function metaStakeMultiplierForTsUTC(d){
+  return stakeMultiplierForTsUTC(d, {
+    byWeekday: META_STAKE_MULT_BY_WEEKDAY,
+    byDate: META_STAKE_MULT_BY_DATE,
+    defaultStakeMult: META_DEFAULT_STAKE_MULT,
+    wedNoMultStartUTC: META_WED_NO_MULT_START_UTC,
+    thuOffStartUTC: META_THU_OFF_START_UTC,
+  });
+}
+
+function resultsStakeMultiplierForTsUTC(d){
+  return stakeMultiplierForTsUTC(d, {
+    byWeekday: RESULTS_STAKE_MULT_BY_WEEKDAY,
+    byDate: RESULTS_STAKE_MULT_BY_DATE,
+    defaultStakeMult: RESULTS_DEFAULT_STAKE_MULT,
+    wedNoMultStartUTC: RESULTS_WED_NO_MULT_START_UTC,
+    thuOffStartUTC: RESULTS_THU_OFF_START_UTC,
+  });
 }
 
 function getBankMXN(){
@@ -273,12 +322,42 @@ function normalizeActual(x){
   return a;
 }
 
-function computePnlFromSignals(row, coins, unitUsd, stakeMult, profitFactorFn){
+function computeSignal(probUp, probDown, threshold){
+  if(probUp >= threshold && probUp >= probDown) return 1;
+  if(probDown >= threshold && probDown >= probUp) return -1;
+  return 0;
+}
+
+function resultsThresholdForCoinAtTsUTC(coin, d){
+  const baseThreshold = RESULTS_SIGNAL_THRESHOLD_BY_COIN[coin];
+  if(baseThreshold === undefined) return undefined;
+
+  const dstr = ymdUTC(d);
+  if(coin === "XRPUSDT" && dstr >= RESULTS_XRP_SIGNAL_START_UTC){
+    return RESULTS_XRP_SIGNAL_THRESHOLD;
+  }
+  return baseThreshold;
+}
+
+function resultsSignalForCoinAtTsUTC(row, coin, d){
+  const threshold = resultsThresholdForCoinAtTsUTC(coin, d);
+  if((('prob_up_' + coin) in row || ('prob_down_' + coin) in row) && threshold !== undefined){
+    const puRaw = toNumber(row['prob_up_' + coin]);
+    const pdRaw = toNumber(row['prob_down_' + coin]);
+    const probUp = puRaw === null ? -Infinity : puRaw;
+    const probDown = pdRaw === null ? -Infinity : pdRaw;
+    return computeSignal(probUp, probDown, threshold);
+  }
+
+  return normalizeSignal(row['signal_' + coin]);
+}
+
+function computePnlFromSignals(row, coins, unitUsd, stakeMult, profitFactorFn, signalFn){
   let pnl = 0;
   let trades = 0;
 
   for(const c of coins){
-    const signal = normalizeSignal(row['signal_' + c]);
+    const signal = signalFn ? signalFn(row, c) : normalizeSignal(row['signal_' + c]);
     const actual = normalizeActual(row['actual_' + c]);
     if(signal === 0) continue;
 
@@ -318,30 +397,29 @@ function buildConglomerateRows(metaRaw, resultsRaw){
 
     let metaCalc = { pnl: 0, trades: 0 };
     if(metaRow){
-      const stakeMultMeta = toNumber(metaRow['stake_mult']);
-      if(Number.isFinite(stakeMultMeta)){
-        metaCalc = computePnlFromSignals(
-          metaRow,
-          metaCoins,
-          META_UNIT_USD,
-          stakeMultMeta,
-          (coin)=> Number(META_PAYOUT_FACTOR_BY_COIN[coin] ?? 0.885)
-        );
-      }
+      const metaStakeMultOverride = metaStakeMultiplierForTsUTC(t);
+      if(!Number.isFinite(metaStakeMultOverride)) continue;
+      metaCalc = computePnlFromSignals(
+        metaRow,
+        metaCoins,
+        META_UNIT_USD,
+        metaStakeMultOverride,
+        (coin)=> Number(META_PAYOUT_FACTOR_BY_COIN[coin] ?? 0.885)
+      );
     }
 
     let baseCalc = { pnl: 0, trades: 0 };
     if(resultsRow){
-      const stakeMultBase = stakeMultiplierForTsUTC(t);
-      if(Number.isFinite(stakeMultBase)){
-        baseCalc = computePnlFromSignals(
-          resultsRow,
-          resultsCoins,
-          BASE_UNIT_USD,
-          stakeMultBase,
-          ()=> BASE_PAYOUT_FACTOR
-        );
-      }
+      const resultsStakeMultOverride = resultsStakeMultiplierForTsUTC(t);
+      if(!Number.isFinite(resultsStakeMultOverride)) continue;
+      baseCalc = computePnlFromSignals(
+        resultsRow,
+        resultsCoins,
+        BASE_UNIT_USD,
+        resultsStakeMultOverride,
+        (coin)=> Number(BASE_PAYOUT_FACTOR_BY_COIN[coin] ?? 0.885),
+        (row, coin)=> resultsSignalForCoinAtTsUTC(row, coin, t)
+      );
     }
 
     const metaUnits = metaCalc.pnl / META_UNIT_USD;
