@@ -140,13 +140,15 @@ const RESULTS_XRP_SIGNAL_THRESHOLD = 0.52217;
 const META_STAKE_MULT_BY_WEEKDAY = {
     "Monday":    0.0,
     "Tuesday":   1.5,
-    //"Wednesday": 1.5,
+    "Wednesday": 0.5,
     "Thursday":  0.0,
-    "Friday":    1.0,
+    "Friday":    0.5,
     "Saturday":  2.25,
     "Sunday":    0.25,
 }
 const META_STAKE_MULT_BY_DATE = {
+  '2026-01-03': 0.5,
+  '2026-01-31': 0.5,
 };
 const META_DEFAULT_STAKE_MULT = 1.0;
 const META_WED_NO_MULT_START_UTC = null;
@@ -154,7 +156,7 @@ const META_THU_OFF_START_UTC = "";
 
 const RESULTS_STAKE_MULT_BY_WEEKDAY = {
     "Monday":    0.0,
-    //"Tuesday":   1.5,
+    "Tuesday":   0.5,
     "Wednesday": 1.5,
     "Thursday":  0.0,
     "Friday":    1.0,
@@ -162,6 +164,8 @@ const RESULTS_STAKE_MULT_BY_WEEKDAY = {
     "Sunday":    0.25,
 }
 const RESULTS_STAKE_MULT_BY_DATE = {
+  '2026-01-03': 0.5,
+  '2026-01-31': 0.5,
 };
 const RESULTS_DEFAULT_STAKE_MULT = 1.0;
 const RESULTS_WED_NO_MULT_START_UTC = null;
