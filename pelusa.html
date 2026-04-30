@@ -110,10 +110,9 @@ const BASE_UNIT_USD = 130;
 const PAYOUT_UNIT_USD = 130;
 
 // Calculadora payout por componente:
-// - meta usa 200 por cada 10k
-// - results usa la tarifa de INDEX
-const CLIENT_MXN_META_PER_10K = 200;
-const CLIENT_MXN_BASE_PER_10K = 130;
+// - meta usa 200 por cada 10k en backtest
+// - results usa 130 por cada 10k, igual que la unidad de Pelusa
+const CLIENT_MXN_PER_UNIT_PER_10K = PAYOUT_UNIT_USD;
 
 const META_PAYOUT_FACTOR_BY_COIN = {
   BTCUSDT: 0.885,
@@ -146,7 +145,7 @@ const META_STAKE_MULT_BY_WEEKDAY = {
 const META_STAKE_MULT_BY_DATE = {
 };
 const META_DEFAULT_STAKE_MULT = 1.0;
-const META_WED_NO_MULT_START_UTC = "";
+const META_WED_NO_MULT_START_UTC = null;
 const META_THU_OFF_START_UTC = "";
 
 const RESULTS_STAKE_MULT_BY_WEEKDAY = {
@@ -161,7 +160,7 @@ const RESULTS_STAKE_MULT_BY_WEEKDAY = {
 const RESULTS_STAKE_MULT_BY_DATE = {
 };
 const RESULTS_DEFAULT_STAKE_MULT = 1.0;
-const RESULTS_WED_NO_MULT_START_UTC = "";
+const RESULTS_WED_NO_MULT_START_UTC = null;
 const RESULTS_THU_OFF_START_UTC = "";
 
 const $$=(s,r=document)=>r.querySelector(s);
@@ -235,11 +234,11 @@ function stakeMultiplierForTsUTC(d, config){
 
   const wd = weekdayNameUTC(d);
 
-  if(wd === "Wednesday" && dstr >= config.wedNoMultStartUTC){
+  if(config.wedNoMultStartUTC && wd === "Wednesday" && dstr >= config.wedNoMultStartUTC){
     return config.defaultStakeMult;
   }
 
-  if(wd === "Thursday" && dstr >= config.thuOffStartUTC){
+  if(config.thuOffStartUTC && wd === "Thursday" && dstr >= config.thuOffStartUTC){
     return 0.0;
   }
 
@@ -273,16 +272,16 @@ function getBankMXN(){
   return Number.isFinite(v) && v >= 0 ? v : 0;
 }
 
-function clientPayoutMXN(metaUnits, baseUnits150, bankMXN){
+function clientPayoutMXN(units, bankMXN){
   const scale = bankMXN / 10000.0;
-  return ((metaUnits * CLIENT_MXN_META_PER_10K) + (baseUnits150 * CLIENT_MXN_BASE_PER_10K)) * scale;
+  return units * CLIENT_MXN_PER_UNIT_PER_10K * scale;
 }
 
-function updateClientPayoutBadge(monthMetaUnits, monthBaseUnits150){
+function updateClientPayoutBadge(monthUnits){
   const el = $$('#clientPayout');
   if(!el) return;
 
-  const payout = clientPayoutMXN(monthMetaUnits, monthBaseUnits150, getBankMXN());
+  const payout = clientPayoutMXN(monthUnits, getBankMXN());
   const sign = payout > 0 ? '+' : '';
 
   el.textContent = `Payout mes: ${sign}${new Intl.NumberFormat('es-MX',{maximumFractionDigits:0}).format(payout)} MXN`;
@@ -411,18 +410,21 @@ function buildConglomerateRows(metaRaw, resultsRaw){
       (row, coin)=> resultsSignalForCoinAtTsUTC(row, coin, t)
     );
 
-    const metaUnits = metaCalc.pnl / META_UNIT_USD;
-    const baseUnits150 = baseCalc.pnl / BASE_UNIT_USD;
-    const baseUnitsEq200 = baseUnits150 * (BASE_UNIT_USD / PAYOUT_UNIT_USD);
+    const metaUnitsNative = metaCalc.pnl / META_UNIT_USD;
+    const baseUnitsNative = baseCalc.pnl / BASE_UNIT_USD;
+    const metaUnitsBase = metaCalc.pnl / BASE_UNIT_USD;
+    const baseUnitsBase = baseCalc.pnl / BASE_UNIT_USD;
 
     out.push({
       tsISO: t.toISOString(),
       hourISO: h,
-      u_total: metaUnits + baseUnitsEq200,
+      u_total: metaUnitsBase + baseUnitsBase,
       trades: metaCalc.trades + baseCalc.trades,
-      u_meta: metaUnits,
-      u_base_150: baseUnits150,
-      u_base_eq200: baseUnitsEq200,
+      u_meta: metaUnitsBase,
+      u_base_150: baseUnitsBase,
+      u_meta_native: metaUnitsNative,
+      u_base_native: baseUnitsNative,
+      u_base_eq200: baseUnitsBase,
     });
   }
 
@@ -449,7 +451,7 @@ function renderCalendar(){
   if(!CAL_CURRENT){
     const grid=$$('#calGrid');
     if(grid) grid.innerHTML='';
-    updateClientPayoutBadge(0, 0);
+    updateClientPayoutBadge(0);
     return 0;
   }
 
@@ -471,7 +473,7 @@ function renderCalendar(){
 
   const grid=$$('#calGrid');
   if(!grid){
-    updateClientPayoutBadge(0, 0);
+    updateClientPayoutBadge(0);
     return 0;
   }
 
@@ -527,7 +529,7 @@ function renderCalendar(){
     mt.textContent = `${rightLabel}: ${new Intl.NumberFormat('es-MX').format(monthCount)}`;
   }
 
-  updateClientPayoutBadge(monthMetaUnits, monthBaseUnits150);
+  updateClientPayoutBadge(monthUnits);
   return monthUnits;
 }
 
