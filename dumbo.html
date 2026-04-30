@@ -104,6 +104,7 @@
 <script>
 const META_CSV_PATH = 'data/meta.csv';
 const RESULTS_CSV_PATH = 'data/results.csv';
+const DUMBO_START_UTC = "2025-09-01";
 
 const PELUSA_PAYOUT_UNIT_USD = 130;
 const DUMBO_PAYOUT_UNIT_USD = 70;
@@ -390,6 +391,7 @@ function buildConglomerateRows(metaRaw, resultsRaw){
   for(const h of allHours){
     const t = new Date(h);
     if(isNaN(t)) continue;
+    if(ymdUTC(t) < DUMBO_START_UTC) continue;
     if(isDroppedMondayFirstHourUTC(t)) continue;
 
     const metaRow = metaMap.get(h);
