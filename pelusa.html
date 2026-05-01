@@ -572,7 +572,6 @@ function rebuildRowsFromLoaded(){
 
     if(!metaRaw?.length) throw new Error('meta.csv vacío');
     if(!resultsRaw?.length) throw new Error('results.csv vacío');
-
     META_RAW = metaRaw;
     RESULTS_RAW = resultsRaw;
     ROWS = buildConglomerateRows(META_RAW, RESULTS_RAW);
