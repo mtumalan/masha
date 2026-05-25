@@ -102,233 +102,66 @@
   </div>
 
 <script>
-// ===== Config (replica Python) =====
-const CSV_PATH = 'data/results.csv';
+// ===== Config =====
+const CSV_PATH  = `data/meta_results.csv?_=${Date.now()}`;
+const COINS     = ['BTCUSDT', 'XRPUSDT', 'ETHUSDT'];
+const UNIT      = 130;
+const META_START_DATE = '2026-05-26';
 
-// Python params
-const COINS_DEFAULT = ["BTCUSDT","XRPUSDT","ETHUSDT"];
-const TH = {
-  "BTCUSDT": 0.51599,
-  "ETHUSDT": 0.509294,
-  "XRPUSDT": 0.50813,
-};
-
-const UNIT     = 50;     // USD por unidad (stake base)
-const PROFIT_F = 0.885;  // payout base
-const XRP_PAYOUT_START_UTC = "2026-04-16"; // desde aquí XRP usa payout/threshold nuevos
-const XRP_PROFIT_F = 0.851;
-const XRP_THRESHOLD_F = 0.52217;
-
-// Stake rules (prioridad: fecha exacta > weekday)
-const STAKE_MULT_BY_WEEKDAY = {
-  "Wednesday": 1.5,
-  "Saturday":  2.25,
-  // "Thursday": 0.0,  // <-- YA NO: el apagado ahora depende de fecha
-};
-
-const STAKE_MULT_BY_DATE = {
-  "2026-02-06": 0.0
-};
-
-const DEFAULT_STAKE_MULT = 1.0;
-const WED_NO_MULT_START_UTC = "2026-03-01"; // desde aquí, miércoles = 1.0
-
-// Thursday OFF a partir de esta fecha (UTC)
-const THU_OFF_START_UTC = "2026-02-01"; // YYYY-MM-DD
-
-// UI helpers
-const $$=(s,r=document)=>r.querySelector(s);
-const fmtNum=(n)=> new Intl.NumberFormat('es-MX',{maximumFractionDigits:2}).format(n);
-
-// ===== Cliente payout =====
-// MXN por unidad por cada 10k MXN
+// MXN por unidad por cada 10k MXN invertidos
 const CLIENT_MXN_PER_UNIT_PER_10K = 70;
 
-function getBankMXN(){
-  const el = $$('#bankInput');
-  if(!el) return 0;
-  const v = Number(el.value);
-  return Number.isFinite(v) && v >= 0 ? v : 0;
-}
+const $$ = (s, r=document) => r.querySelector(s);
+const fmtNum = (n) => new Intl.NumberFormat('es-MX', {maximumFractionDigits:2}).format(n);
 
-// >>> CAMBIO CLAVE: ahora SÍ muestra pérdida cuando el mes es negativo
-// (ya no clamp a 0)
-function clientPayoutMXN(units, bankMXN){
-  const scale = bankMXN / 10000.0;
-  return units * CLIENT_MXN_PER_UNIT_PER_10K * scale;
-}
+let ROWS = [];
+let CAL_CURRENT = null;
+let MODE = 'trade';
 
-function updateClientPayoutBadge(monthUnits){
-  const el = $$('#clientPayout');
-  if(!el) return;
+// ── Parsing helpers ───────────────────────────────────────────────────────────
 
-  const bankMXN = getBankMXN();
-  const payout  = clientPayoutMXN(monthUnits, bankMXN);
-
-  const sign = payout > 0 ? '+' : '';
-  el.textContent = `Payout mes: ${sign}${new Intl.NumberFormat('es-MX',{maximumFractionDigits:0}).format(payout)} MXN`;
-
-  el.classList.toggle('positive', payout > 0);
-  el.classList.toggle('negative', payout < 0);
-}
-
-let RAW=[];
-let ROWS=[];
-let CAL_CURRENT=null;
-let MODE='trade';
-
-// ---------- Parsing / utils ----------
 function toNumber(x){
   if(x===null||x===undefined||x==='') return null;
   if(typeof x === 'string'){
-    const t=x.trim().toLowerCase();
-    if(t==='-inf'||t==='inf'||t==='infinity'||t==='-infinity'||t==='nan') return null;
+    const t = x.trim().toLowerCase();
+    if(['nan','-inf','inf','infinity','-infinity'].includes(t)) return null;
   }
-  const n=Number(x);
-  return Number.isFinite(n)? n : null;
+  const n = Number(x);
+  return Number.isFinite(n) ? n : null;
 }
 
 function parseTsAsUTC(x){
   if(x == null) return new Date(NaN);
-  if(typeof x === 'number') return new Date(x);
   const s = String(x).trim();
   if(/[zZ]|[+\-]\d{2}:?\d{2}$/.test(s)) return new Date(s);
-  const s2 = s.replace(' ', 'T');
-  return new Date(s2 + 'Z');
-}
-
-function detectDateCol(cols){
-  const guess=['timestamp','ts','date','datetime'];
-  const lower=cols.map(c=>c.toLowerCase());
-  for(const g of guess){
-    const idx=lower.indexOf(g);
-    if(idx!==-1) return cols[idx];
-  }
-  return cols[0];
-}
-
-function listCoinsFromHeaders(headers){
-  const coins=new Set();
-  for(const h of headers){
-    if(h.startsWith('prob_up_')) coins.add(h.slice('prob_up_'.length));
-    if(h.startsWith('prob_down_')) coins.add(h.slice('prob_down_'.length));
-    if(h.startsWith('actual_')) coins.add(h.slice('actual_'.length));
-    if(h.startsWith('signal_')) coins.add(h.slice('signal_'.length));
-  }
-  const arr=[...coins].sort();
-  return arr.length ? arr : COINS_DEFAULT.slice();
+  return new Date(s.replace(' ','T') + 'Z');
 }
 
 function ymdUTC(d){
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
-    .toISOString().slice(0,10);
+  return d.getUTCFullYear() + '-'
+    + String(d.getUTCMonth()+1).padStart(2,'0') + '-'
+    + String(d.getUTCDate()).padStart(2,'0');
 }
 
-function weekdayNameUTC(d){
-  return new Intl.DateTimeFormat('en-US',{weekday:'long',timeZone:'UTC'}).format(d);
-}
+// ── Build rows — reads pre-computed pnl_total + signals from meta_results.csv ─
 
-function profitFactorForCoinAtTsUTC(coin, d){
-  const dstr = ymdUTC(d);
-  if(coin === "XRPUSDT" && dstr >= XRP_PAYOUT_START_UTC){
-    return XRP_PROFIT_F;
-  }
-  return PROFIT_F;
-}
-
-function thresholdForCoinAtTsUTC(coin, d){
-  const baseTh = TH[coin];
-  if(baseTh === undefined) return undefined;
-  const dstr = ymdUTC(d);
-  if(coin === "XRPUSDT" && dstr >= XRP_PAYOUT_START_UTC){
-    return XRP_THRESHOLD_F;
-  }
-  return baseTh;
-}
-
-function stakeMultiplierForTsUTC(d){
-  const dstr = ymdUTC(d);
-
-  // prioridad: fecha exacta
-  if(Object.prototype.hasOwnProperty.call(STAKE_MULT_BY_DATE, dstr)){
-    return Number(STAKE_MULT_BY_DATE[dstr]);
-  }
-
-  const wd = weekdayNameUTC(d);
-
-  // Quitar multiplicador de miércoles a partir de marzo 2026
-  if(wd === "Wednesday" && dstr >= WED_NO_MULT_START_UTC){
-    return DEFAULT_STAKE_MULT;
-  }
-
-  // Thursday OFF solo desde 2026-02-01 (UTC) en adelante
-  // (comparación lexicográfica segura para YYYY-MM-DD)
-  if(wd === "Thursday" && dstr >= THU_OFF_START_UTC){
-    return 0.0;
-  }
-
-  return Number(STAKE_MULT_BY_WEEKDAY[wd] ?? DEFAULT_STAKE_MULT);
-}
-
-function isDroppedMondayFirstHourUTC(d){
-  return (d.getUTCDay() === 1) && (d.getUTCHours() === 0);
-}
-
-function computeSignal(probUp, probDown, th){
-  if(probUp >= th && probUp >= probDown) return 1;
-  if(probDown >= th && probDown >= probUp) return -1;
-  return 0;
-}
-
-function buildRowsLikePython(rawRows, dateCol){
+function buildRows(rawRows){
   if(!rawRows?.length) return [];
-
-  const headers = Object.keys(rawRows[0]);
-  const coins = listCoinsFromHeaders(headers);
-
   const tmp = [];
   for(const r of rawRows){
-    const t = parseTsAsUTC(r[dateCol]);
+    const t = parseTsAsUTC(r['timestamp']);
     if(isNaN(t)) continue;
-    if(isDroppedMondayFirstHourUTC(t)) continue;
+    if(t.getUTCDay() === 1 && t.getUTCHours() === 0) continue;
+    if(ymdUTC(t) < META_START_DATE) continue;
 
-    const stake_mult = stakeMultiplierForTsUTC(t);
+    const pnlTotal = toNumber(r['pnl_total']) ?? 0;
+    const u_total  = pnlTotal / UNIT;
 
-    let pnl_total_usd = 0;
     let trades = 0;
-
-    for(const c of coins){
-      const puRaw = toNumber(r['prob_up_'+c]);
-      const pdRaw = toNumber(r['prob_down_'+c]);
-      const probUp   = (puRaw === null ? -Infinity : puRaw);
-      const probDown = (pdRaw === null ? -Infinity : pdRaw);
-
-      const actRaw = toNumber(r['actual_'+c]);
-      const actual = (actRaw === null ? 0 : (actRaw|0));
-
-      let signal;
-      const th = thresholdForCoinAtTsUTC(c, t);
-      if((('prob_up_'+c) in r || ('prob_down_'+c) in r) && (th !== undefined)){
-        signal = computeSignal(probUp, probDown, th);
-      } else {
-        const sigRaw = toNumber(r['signal_'+c]);
-        signal = (sigRaw === null ? 0 : (sigRaw|0));
-        if(signal !== -1 && signal !== 0 && signal !== 1) signal = 0;
-      }
-
-      const hit = (signal !== 0) && (signal === actual);
-
-      const profitF = profitFactorForCoinAtTsUTC(c, t);
-      const win_amt  = UNIT * stake_mult * profitF;
-      const lose_amt = -UNIT * stake_mult;
-
-      const pnl_usd = (signal === 0) ? 0 : (hit ? win_amt : lose_amt);
-
-      pnl_total_usd += pnl_usd;
-      if(signal !== 0) trades += 1;
+    for(const c of COINS){
+      const sig = toNumber(r[`signal_${c}`]);
+      if(sig !== null && sig !== 0) trades++;
     }
-
-    const u_total = pnl_total_usd / UNIT;
 
     const hourISO = new Date(Date.UTC(
       t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), t.getUTCHours()
@@ -336,193 +169,157 @@ function buildRowsLikePython(rawRows, dateCol){
 
     tmp.push({ tsISO: t.toISOString(), hourISO, u_total, trades });
   }
-
-  // cutoff común
-  const lastByCoin = {};
-  for(const c of coins) lastByCoin[c] = null;
-
-  for(const r of rawRows){
-    const t = parseTsAsUTC(r[dateCol]);
-    if(isNaN(t)) continue;
-    if(isDroppedMondayFirstHourUTC(t)) continue;
-
-    for(const c of coins){
-      const pu = toNumber(r['prob_up_'+c]);
-      const pd = toNumber(r['prob_down_'+c]);
-      const hasProbCols = (('prob_up_'+c) in r) || (('prob_down_'+c) in r);
-
-      let real = false;
-      if(hasProbCols){
-        const puF = (pu === null ? -Infinity : pu);
-        const pdF = (pd === null ? -Infinity : pd);
-        real = Number.isFinite(puF) || Number.isFinite(pdF);
-      } else {
-        const act = toNumber(r['actual_'+c]) ?? 0;
-        const sig = toNumber(r['signal_'+c]) ?? 0;
-        real = (act !== 0) || (sig !== 0);
-      }
-
-      if(real){
-        if(lastByCoin[c] === null || t > lastByCoin[c]) lastByCoin[c] = t;
-      }
-    }
-  }
-
-  const lastVals = Object.values(lastByCoin).filter(d => d instanceof Date && !isNaN(d));
-  const cutoffCommon = lastVals.length ? new Date(Math.min(...lastVals.map(d=>d.getTime()))) : null;
-
-  const filtered = cutoffCommon
-    ? tmp.filter(o => new Date(o.tsISO).getTime() <= cutoffCommon.getTime())
-    : tmp;
-
-  filtered.sort((a,b)=> (a.tsISO < b.tsISO ? -1 : a.tsISO > b.tsISO ? 1 : 0));
-  return filtered;
+  tmp.sort((a,b) => a.tsISO < b.tsISO ? -1 : a.tsISO > b.tsISO ? 1 : 0);
+  return tmp;
 }
 
+// ── Aggregate by day ──────────────────────────────────────────────────────────
+
 function summarizeByDay_Hours(rows){
-  const byDay=new Map();
+  const byDay = new Map();
   for(const r of rows){
-    const d=new Date(r.tsISO);
-    const key=new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString().slice(0,10);
-    const o=byDay.get(key)||{u:0,hours:0,trades:0};
-    o.u += r.u_total;
-    o.hours += 1;
+    const d = new Date(r.tsISO);
+    const key = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString().slice(0,10);
+    const o = byDay.get(key) || {u:0, hours:0, trades:0};
+    o.u      += r.u_total;
+    o.hours  += (r.trades > 0 ? 1 : 0);
     o.trades += r.trades;
-    byDay.set(key,o);
+    byDay.set(key, o);
   }
   return byDay;
 }
 
+// ── Client payout ─────────────────────────────────────────────────────────────
+
+function getBankMXN(){
+  const v = Number($$('#bankInput')?.value);
+  return Number.isFinite(v) && v >= 0 ? v : 0;
+}
+
+function updateClientPayoutBadge(monthUnits){
+  const el = $$('#clientPayout');
+  if(!el) return;
+  const payout = monthUnits * CLIENT_MXN_PER_UNIT_PER_10K * (getBankMXN() / 10_000);
+  const sign = payout > 0 ? '+' : '';
+  el.textContent = `Payout mes: ${sign}${new Intl.NumberFormat('es-MX',{maximumFractionDigits:0}).format(payout)} MXN`;
+  el.classList.toggle('positive', payout > 0);
+  el.classList.toggle('negative', payout < 0);
+}
+
+// ── Render calendar ───────────────────────────────────────────────────────────
+
 function renderCalendar(){
-  if(!CAL_CURRENT){
-    const grid=$$('#calGrid');
-    if(grid) grid.innerHTML='';
-    updateClientPayoutBadge(0);
-    return 0;
-  }
+  if(!CAL_CURRENT){ updateClientPayoutBadge(0); return 0; }
 
-  const year=CAL_CURRENT.getUTCFullYear(), month=CAL_CURRENT.getUTCMonth();
-  const first=new Date(Date.UTC(year,month,1));
-  const dow=first.getUTCDay();
-  const offset=(dow===0?-6:1-dow);
-  const start=new Date(Date.UTC(year,month,1+offset));
+  const year  = CAL_CURRENT.getUTCFullYear();
+  const month = CAL_CURRENT.getUTCMonth();
+  const first = new Date(Date.UTC(year, month, 1));
+  const dow   = first.getUTCDay();
+  const start = new Date(Date.UTC(year, month, 1 + (dow === 0 ? -6 : 1 - dow)));
 
-  const byDay = summarizeByDay_Hours(ROWS);
+  const byDay      = summarizeByDay_Hours(ROWS);
+  const rightLabel = MODE === 'trade' ? 'Trades' : 'Horas';
 
   const titleEl = $$('#calTitle');
-  if(titleEl){
-    titleEl.textContent=new Intl.DateTimeFormat('es-MX',{month:'long',year:'numeric',timeZone:'UTC'}).format(first);
-  }
+  if(titleEl) titleEl.textContent = new Intl.DateTimeFormat('es-MX', {month:'long', year:'numeric', timeZone:'UTC'}).format(first);
 
-  let monthUnits=0, monthCount=0;
-  const rightLabel = (MODE === 'trade') ? 'Trades' : 'Horas';
+  const grid = $$('#calGrid');
+  if(!grid){ updateClientPayoutBadge(0); return 0; }
+  grid.innerHTML = '<div class="cal-dow">Lun</div><div class="cal-dow">Mar</div><div class="cal-dow">Mié</div><div class="cal-dow">Jue</div><div class="cal-dow">Vie</div><div class="cal-dow">Sáb</div><div class="cal-dow">Dom</div>';
 
-  const grid=$$('#calGrid');
-  if(!grid){
-    updateClientPayoutBadge(0);
-    return 0;
-  }
-
-  grid.innerHTML=`<div class="cal-dow">Lun</div><div class="cal-dow">Mar</div><div class="cal-dow">Mié</div><div class="cal-dow">Jue</div><div class="cal-dow">Vie</div><div class="cal-dow">Sáb</div><div class="cal-dow">Dom</div>`;
-
-  const daysInMonth=new Date(Date.UTC(year,month+1,0)).getUTCDate();
-  const vals=[];
+  const daysInMonth = new Date(Date.UTC(year, month+1, 0)).getUTCDate();
+  const vals = [];
   for(let d=1; d<=daysInMonth; d++){
-    const key=new Date(Date.UTC(year,month,d)).toISOString().slice(0,10);
-    const rec=byDay.get(key);
-    vals.push(Math.abs(rec?.u||0));
+    const key = new Date(Date.UTC(year, month, d)).toISOString().slice(0,10);
+    vals.push(Math.abs(byDay.get(key)?.u || 0));
   }
-  const maxAbs=Math.max(0,...vals);
+  const maxAbs = Math.max(0, ...vals);
 
-  for(let i=0;i<42;i++){
-    const d=new Date(Date.UTC(start.getUTCFullYear(),start.getUTCMonth(),start.getUTCDate()+i));
-    const key=d.toISOString().slice(0,10);
-    const inMonth=d.getUTCMonth()===month;
-
-    const rec=byDay.get(key) || {u:0,hours:0,trades:0};
+  let monthUnits = 0, monthCount = 0;
+  for(let i=0; i<42; i++){
+    const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()+i));
+    const key = d.toISOString().slice(0,10);
+    const inMonth = d.getUTCMonth() === month;
+    const rec = byDay.get(key) || {u:0, hours:0, trades:0};
 
     if(inMonth){
       monthUnits += rec.u;
       monthCount += (MODE === 'trade') ? rec.trades : rec.hours;
     }
 
-    const u=rec.u;
-    const alpha=maxAbs>0? (0.18+0.72*Math.min(1,Math.abs(u)/maxAbs)) : 0;
-
+    const u = rec.u;
+    const alpha = maxAbs > 0 ? (0.18 + 0.72 * Math.min(1, Math.abs(u) / maxAbs)) : 0;
     let bg, border;
-    if(u>0){ bg=`rgba(31,185,112,${alpha})`; border='rgba(31,185,112,.55)'; }
-    else if(u<0){ bg=`rgba(224,82,107,${alpha})`; border='rgba(224,82,107,.55)'; }
-    else { bg='#1a2234'; border='var(--border)'; }
+    if(u > 0)     { bg=`rgba(31,185,112,${alpha})`;  border='rgba(31,185,112,.55)'; }
+    else if(u < 0){ bg=`rgba(224,82,107,${alpha})`;  border='rgba(224,82,107,.55)'; }
+    else          { bg='#1a2234';                     border='var(--border)'; }
 
-    const div=document.createElement('div');
-    div.className='day'+(inMonth?'':' other');
-    div.style.background = u===0 ? bg : `linear-gradient(180deg, ${bg}, rgba(0,0,0,.08))`;
+    const div = document.createElement('div');
+    div.className = 'day' + (inMonth ? '' : ' other');
+    div.style.background  = u === 0 ? bg : `linear-gradient(180deg, ${bg}, rgba(0,0,0,.08))`;
     div.style.borderColor = border;
-    div.innerHTML = `<div class="n">${d.getUTCDate()}</div><div class="u">${u>0? '+'+fmtNum(u): (u<0? fmtNum(u): '—')} u</div>`;
+    div.innerHTML = `<div class="n">${d.getUTCDate()}</div><div class="u">${u>0?'+'+fmtNum(u):u<0?fmtNum(u):'—'} u</div>`;
     grid.appendChild(div);
   }
 
-  const badge=$$('#monthUnits');
+  const badge = $$('#monthUnits');
   if(badge){
-    badge.textContent = `Mes: ${monthUnits>0? '+'+fmtNum(monthUnits): fmtNum(monthUnits)} u`;
-    badge.classList.toggle('positive', monthUnits>0);
-    badge.classList.toggle('negative', monthUnits<0);
+    badge.textContent = `Mes: ${monthUnits>0?'+'+fmtNum(monthUnits):fmtNum(monthUnits)} u`;
+    badge.classList.toggle('positive', monthUnits > 0);
+    badge.classList.toggle('negative', monthUnits < 0);
   }
-
-  const mt=$$('#monthTrades');
-  if(mt){
-    mt.textContent = `${rightLabel}: ${new Intl.NumberFormat('es-MX').format(monthCount)}`;
-  }
+  const mt = $$('#monthTrades');
+  if(mt) mt.textContent = `${rightLabel}: ${new Intl.NumberFormat('es-MX').format(monthCount)}`;
 
   updateClientPayoutBadge(monthUnits);
   return monthUnits;
 }
 
+// ── Load & boot ───────────────────────────────────────────────────────────────
+
 async function loadCSV(){
-  return new Promise((res,rej)=>{
-    Papa.parse(CSV_PATH,{
+  return new Promise((res,rej) => {
+    Papa.parse(CSV_PATH, {
       header:true, dynamicTyping:true, download:true, skipEmptyLines:true,
-      complete:(o)=>res(o.data), error:(e)=>rej(e)
+      complete:(o) => res(o.data), error:(e) => rej(e),
     });
   });
 }
 
-(async()=>{
+(async () => {
   try{
-    RAW = await loadCSV();
-    if(!RAW || !RAW.length) throw new Error('CSV vacío');
+    const raw = await loadCSV();
+    if(!raw?.length) throw new Error('CSV vacío');
 
-    const headers=Object.keys(RAW[0]);
-    const dateCol = detectDateCol(headers);
+    ROWS = buildRows(raw);
+    if(!ROWS.length) throw new Error('Sin filas útiles');
 
-    ROWS = buildRowsLikePython(RAW, dateCol);
-    if(!ROWS.length) throw new Error('Sin filas útiles tras drop/cutoff');
-
-    const dLast = new Date(ROWS[ROWS.length - 1].tsISO);
+    const dLast = new Date(ROWS[ROWS.length-1].tsISO);
     CAL_CURRENT = new Date(Date.UTC(dLast.getUTCFullYear(), dLast.getUTCMonth(), 1));
-
     renderCalendar();
   }catch(e){
     console.error(e);
   }
 })();
 
-$$('#prevMonth')?.addEventListener('click', ()=>{
+// ── Events ────────────────────────────────────────────────────────────────────
+
+$$('#prevMonth')?.addEventListener('click', () => {
   if(!CAL_CURRENT) return;
   CAL_CURRENT = new Date(Date.UTC(CAL_CURRENT.getUTCFullYear(), CAL_CURRENT.getUTCMonth()-1, 1));
   renderCalendar();
 });
-$$('#nextMonth')?.addEventListener('click', ()=>{
+$$('#nextMonth')?.addEventListener('click', () => {
   if(!CAL_CURRENT) return;
   CAL_CURRENT = new Date(Date.UTC(CAL_CURRENT.getUTCFullYear(), CAL_CURRENT.getUTCMonth()+1, 1));
   renderCalendar();
 });
 
-$$('#bankInput')?.addEventListener('input', ()=> renderCalendar());
+$$('#bankInput')?.addEventListener('input', () => renderCalendar());
 
-document.querySelectorAll('#modeSeg button').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.remove('active'));
+document.querySelectorAll('#modeSeg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#modeSeg button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     MODE = btn.dataset.mode;
     renderCalendar();
