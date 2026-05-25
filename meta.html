@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>META</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <style>
+    :root{
+      --bg:#f3f5f8; --ink:#1f2937; --muted:#6b7280; --panel:#ffffff; --border:#d1d5db;
+      --good:#15803d; --bad:#b91c1c;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Helvetica,Arial,sans-serif}
+    .wrap{max-width:1000px;margin:32px auto;padding:0 16px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+    h1{font-size:18px;margin:0}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px}
+
+    .cal-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px}
+    .cal-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .cal-title h2{margin:0;font-size:15px}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:999px;background:#f8fafc;font-size:12px;color:var(--ink)}
+    .badge.positive{border-color:var(--good);color:var(--good)}
+    .badge.negative{border-color:var(--bad);color:var(--bad)}
+    button{background:#f8fafc;color:var(--ink);border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;cursor:pointer}
+    button:hover{background:#eef2f7}
+
+    .seg{display:inline-flex;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden}
+    .seg button{padding:6px 10px;border:0;background:#f8fafc}
+    .seg button.active{background:#e6ecf5;border-left:1px solid #cbd5e1;border-right:1px solid #cbd5e1}
+
+    .cal-scroll{overflow:auto; -webkit-overflow-scrolling:touch}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));gap:8px;min-width:630px}
+    .cal-dow{font-size:11px;color:var(--muted);text-align:center;padding:6px 0;position:sticky;top:0;background:var(--panel);z-index:1}
+
+    .day{background:#f3f4f6;border:1px solid var(--border);border-radius:12px;padding:10px;display:flex;flex-direction:column;aspect-ratio:1/1}
+    .day.other{opacity:.35}
+    .day .n{font-size:12px;color:var(--muted)}
+    .day .u{margin-top:auto;font-weight:700}
+
+    @media (max-width: 900px){
+      .wrap{padding:0 12px}
+      .cal-grid{grid-template-columns:repeat(7,minmax(70px,1fr));gap:6px;min-width:490px}
+    }
+    @media (max-width: 600px){
+      .cal-top{flex-direction:column;align-items:flex-start}
+      .cal-grid{grid-template-columns:repeat(7,minmax(56px,1fr));gap:5px;min-width:392px}
+      .day{padding:8px;}
+      .day .n{font-size:11px}
+      .day .u{font-size:12px}
+      h1{font-size:16px}
+      .cal-title h2{font-size:14px}
+      .badge{font-size:11px;padding:5px 8px}
+      button{padding:6px 8px}
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>META</h1>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span id="monthUnits" class="badge">Mes: — u</span>
+        <span id="monthTrades" class="badge">—</span>
+        <div class="seg" id="modeSeg">
+          <button data-mode="trade" class="active">Por trade</button>
+          <button data-mode="hour">Por hora</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="cal-top">
+        <div class="cal-title">
+          <button id="prevMonth">◀</button>
+          <h2 id="calTitle">—</h2>
+          <button id="nextMonth">▶</button>
+        </div>
+      </div>
+      <div class="cal-scroll"><div class="cal-grid" id="calGrid">
+        <div class="cal-dow">Lun</div>
+        <div class="cal-dow">Mar</div>
+        <div class="cal-dow">Mié</div>
+        <div class="cal-dow">Jue</div>
+        <div class="cal-dow">Vie</div>
+        <div class="cal-dow">Sáb</div>
+        <div class="cal-dow">Dom</div>
+      </div></div>
+    </section>
+
+    <div class="panel" style="padding:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; width:100%; margin-top:8px;">
+      <span class="badge">Bank cliente (MXN)</span>
+      <input id="bankInput" type="number" inputmode="numeric" min="0" step="100"
+            value="0"
+            style="background:#f8fafc;color:var(--ink);border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;max-width:180px" />
+      <span id="clientPayout" class="badge">Payout mes: — MXN</span>
+    </div>
+  </div>
+
+<script>
+// ===== Config =====
+const CSV_PATH = `data/meta_results.csv?_=${Date.now()}`;
+const COINS    = ['BTCUSDT', 'XRPUSDT', 'ETHUSDT'];
+
+const UNIT  = 130;
+const BANK0 = 10_000;
+
+const CLIENT_MXN_PER_UNIT_PER_10K = 130;
+
+const $$ = (s, r=document) => r.querySelector(s);
+const fmtN = (n) => new Intl.NumberFormat('es-MX', {maximumFractionDigits:2}).format(n);
+
+let ROWS = [];
+let CAL_CURRENT = null;
+let MODE = 'trade';
+let CURRENT_BANK = null;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function toNumber(x){
+  if(x===null||x===undefined||x==='') return null;
+  if(typeof x === 'string'){
+    const t = x.trim().toLowerCase();
+    if(['nan','-inf','inf','infinity','-infinity'].includes(t)) return null;
+  }
+  const n = Number(x);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseTsAsUTC(x){
+  if(x == null) return new Date(NaN);
+  const s = String(x).trim();
+  if(/[zZ]|[+\-]\d{2}:?\d{2}$/.test(s)) return new Date(s);
+  return new Date(s.replace(' ','T') + 'Z');
+}
+
+function ymdUTC(d){
+  return d.getUTCFullYear() + '-'
+    + String(d.getUTCMonth()+1).padStart(2,'0') + '-'
+    + String(d.getUTCDate()).padStart(2,'0');
+}
+
+// ── Build rows — use pre-computed columns from CSV ────────────────────────────
+
+function buildRows(rawRows){
+  const tmp = [];
+  let lastBank = BANK0;
+
+  for(const r of rawRows){
+    const t = parseTsAsUTC(r['timestamp']);
+    if(isNaN(t)) continue;
+    // Drop lunes 00:00 UTC
+    if(t.getUTCDay() === 1 && t.getUTCHours() === 0) continue;
+
+    const dayKey   = ymdUTC(t);
+    // pnl_total already has circuit breaker applied by export script
+    const pnlTotal = toNumber(r['pnl_total']) ?? 0;
+
+    // Count active trades from pre-computed signals
+    let trades = 0;
+    for(const c of COINS){
+      const sig = toNumber(r[`signal_${c}`]);
+      if(sig !== null && sig !== 0) trades++;
+    }
+
+    const bankVal = toNumber(r['bank']);
+    if(bankVal !== null) lastBank = bankVal;
+
+    tmp.push({ tsISO:t.toISOString(), tsMs:t.getTime(), dayKey, pnl:pnlTotal, trades });
+  }
+
+  tmp.sort((a,b) => a.tsMs - b.tsMs);
+  CURRENT_BANK = lastBank;
+  return tmp;
+}
+
+// ── Aggregate by day ──────────────────────────────────────────────────────────
+
+function summarizeByDay(rows){
+  const byDay = new Map();
+  for(const r of rows){
+    const o = byDay.get(r.dayKey) || { pnl:0, trades:0, hours:0 };
+    o.pnl    += r.pnl;
+    o.trades += r.trades;
+    o.hours  += (r.trades > 0 ? 1 : 0);
+    byDay.set(r.dayKey, o);
+  }
+  return byDay;
+}
+
+// ── Client payout ─────────────────────────────────────────────────────────────
+
+function getBankMXN(){
+  const v = Number($$('#bankInput')?.value);
+  return Number.isFinite(v) && v >= 0 ? v : 0;
+}
+
+function updateClientPayout(monthUnits){
+  const el = $$('#clientPayout');
+  if(!el) return;
+  const payout = monthUnits * CLIENT_MXN_PER_UNIT_PER_10K * (getBankMXN() / 10_000);
+  const sign   = payout > 0 ? '+' : '';
+  el.textContent = `Payout mes: ${sign}${new Intl.NumberFormat('es-MX',{maximumFractionDigits:0}).format(payout)} MXN`;
+  el.classList.toggle('positive', payout > 0);
+  el.classList.toggle('negative', payout < 0);
+}
+
+// ── Render calendar ───────────────────────────────────────────────────────────
+
+function renderCalendar(){
+  if(!CAL_CURRENT){ updateClientPayout(0); return 0; }
+
+  const year  = CAL_CURRENT.getUTCFullYear();
+  const month = CAL_CURRENT.getUTCMonth();
+  const first = new Date(Date.UTC(year, month, 1));
+  const dow   = first.getUTCDay();
+  const start = new Date(Date.UTC(year, month, 1 + (dow===0 ? -6 : 1-dow)));
+
+  const byDay = summarizeByDay(ROWS);
+
+  const titleEl = $$('#calTitle');
+  if(titleEl) titleEl.textContent = new Intl.DateTimeFormat('es-MX',{month:'long',year:'numeric',timeZone:'UTC'}).format(first);
+
+  const rightLabel = MODE==='trade' ? 'Trades' : 'Horas';
+  let monthUnits = 0, monthCount = 0;
+
+  const grid = $$('#calGrid');
+  if(!grid){ updateClientPayout(0); return 0; }
+  grid.innerHTML = '<div class="cal-dow">Lun</div><div class="cal-dow">Mar</div><div class="cal-dow">Mié</div><div class="cal-dow">Jue</div><div class="cal-dow">Vie</div><div class="cal-dow">Sáb</div><div class="cal-dow">Dom</div>';
+
+  const daysInMonth = new Date(Date.UTC(year, month+1, 0)).getUTCDate();
+  const absVals = [];
+  for(let d=1; d<=daysInMonth; d++){
+    const key = new Date(Date.UTC(year,month,d)).toISOString().slice(0,10);
+    absVals.push(Math.abs((byDay.get(key)?.pnl ?? 0) / UNIT));
+  }
+  const maxAbs = Math.max(0, ...absVals);
+
+  for(let i=0; i<42; i++){
+    const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()+i));
+    const key = d.toISOString().slice(0,10);
+    const inMonth = d.getUTCMonth() === month;
+    const rec = byDay.get(key) || { pnl:0, trades:0, hours:0 };
+    const u   = rec.pnl / UNIT;
+
+    if(inMonth){
+      monthUnits += u;
+      monthCount += MODE==='trade' ? rec.trades : rec.hours;
+    }
+
+    const alpha = maxAbs > 0 ? (0.18 + 0.72 * Math.min(1, Math.abs(u)/maxAbs)) : 0;
+    let bg, border;
+    if(u > 0)     { bg=`rgba(21,128,61,${alpha})`;   border='rgba(21,128,61,.78)'; }
+    else if(u < 0){ bg=`rgba(185,28,28,${alpha})`;   border='rgba(185,28,28,.78)'; }
+    else          { bg='#f3f4f6';                     border='var(--border)'; }
+
+    const div = document.createElement('div');
+    div.className = 'day' + (inMonth ? '' : ' other');
+    div.style.background  = u===0 ? bg : `linear-gradient(180deg,${bg},rgba(0,0,0,.08))`;
+    div.style.borderColor = border;
+    div.innerHTML = `<div class="n">${d.getUTCDate()}</div><div class="u">${u>0?'+'+fmtN(u):u<0?fmtN(u):'—'} u</div>`;
+    grid.appendChild(div);
+  }
+
+  const badge = $$('#monthUnits');
+  if(badge){
+    badge.textContent = `Mes: ${monthUnits>0?'+'+fmtN(monthUnits):fmtN(monthUnits)} u`;
+    badge.classList.toggle('positive', monthUnits > 0);
+    badge.classList.toggle('negative', monthUnits < 0);
+  }
+  const mt = $$('#monthTrades');
+  if(mt) mt.textContent = `${rightLabel}: ${new Intl.NumberFormat('es-MX').format(monthCount)}`;
+
+  updateClientPayout(monthUnits);
+  return monthUnits;
+}
+
+// ── Load & boot ───────────────────────────────────────────────────────────────
+
+async function loadCSV(){
+  return new Promise((res,rej) => {
+    Papa.parse(CSV_PATH, {
+      header:true, dynamicTyping:true, download:true, skipEmptyLines:true,
+      complete:(o) => res(o.data), error:(e) => rej(e),
+    });
+  });
+}
+
+(async () => {
+  try{
+    const raw = await loadCSV();
+    if(!raw?.length) throw new Error('CSV vacío');
+
+    ROWS = buildRows(raw);
+    if(!ROWS.length) throw new Error('Sin filas útiles');
+
+    const dLast = new Date(ROWS[ROWS.length-1].tsISO);
+    CAL_CURRENT = new Date(Date.UTC(dLast.getUTCFullYear(), dLast.getUTCMonth(), 1));
+    renderCalendar();
+  }catch(e){
+    console.error('META error:', e);
+  }
+})();
+
+// ── Events ────────────────────────────────────────────────────────────────────
+
+$$('#prevMonth')?.addEventListener('click', () => {
+  if(!CAL_CURRENT) return;
+  CAL_CURRENT = new Date(Date.UTC(CAL_CURRENT.getUTCFullYear(), CAL_CURRENT.getUTCMonth()-1, 1));
+  renderCalendar();
+});
+$$('#nextMonth')?.addEventListener('click', () => {
+  if(!CAL_CURRENT) return;
+  CAL_CURRENT = new Date(Date.UTC(CAL_CURRENT.getUTCFullYear(), CAL_CURRENT.getUTCMonth()+1, 1));
+  renderCalendar();
+});
+
+$$('#bankInput')?.addEventListener('input', () => renderCalendar());
+
+document.querySelectorAll('#modeSeg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#modeSeg button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    MODE = btn.dataset.mode;
+    renderCalendar();
+  });
+});
+</script>
+
+</body>
+</html>
