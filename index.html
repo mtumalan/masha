@@ -103,10 +103,13 @@
 
 <script>
 // ===== Config =====
-const CSV_PATH  = `data/meta_results.csv?_=${Date.now()}`;
-const COINS     = ['BTCUSDT', 'XRPUSDT', 'ETHUSDT'];
-const UNIT      = 130;
-const META_START_DATE = '2026-05-26';
+const _TS         = Date.now();
+const CSV_OLD     = `data/results.csv?_=${_TS}`;
+const CSV_META    = `data/meta_results.csv?_=${_TS}`;
+const COINS       = ['BTCUSDT', 'XRPUSDT', 'ETHUSDT'];
+const UNIT_OLD    = 50;
+const UNIT_META   = 130;
+const CUTOFF_DATE = '2026-05-26';
 
 // MXN por unidad por cada 10k MXN invertidos
 const CLIENT_MXN_PER_UNIT_PER_10K = 70;
@@ -143,19 +146,24 @@ function ymdUTC(d){
     + String(d.getUTCDate()).padStart(2,'0');
 }
 
-// ── Build rows — reads pre-computed pnl_total + signals from meta_results.csv ─
+// ── Build rows — reads pre-computed pnl_total + signals from CSV ──────────────
+// before=true  → keep rows with date <  CUTOFF_DATE (results.csv,    unit=UNIT_OLD)
+// before=false → keep rows with date >= CUTOFF_DATE (meta_results.csv, unit=UNIT_META)
 
-function buildRows(rawRows){
+function buildRowsSlice(rawRows, before){
   if(!rawRows?.length) return [];
-  const tmp = [];
+  const unit = before ? UNIT_OLD : UNIT_META;
+  const tmp  = [];
   for(const r of rawRows){
     const t = parseTsAsUTC(r['timestamp']);
     if(isNaN(t)) continue;
     if(t.getUTCDay() === 1 && t.getUTCHours() === 0) continue;
-    if(ymdUTC(t) < META_START_DATE) continue;
+    const ymd = ymdUTC(t);
+    if( before && ymd >= CUTOFF_DATE) continue;
+    if(!before && ymd <  CUTOFF_DATE) continue;
 
     const pnlTotal = toNumber(r['pnl_total']) ?? 0;
-    const u_total  = pnlTotal / UNIT;
+    const u_total  = pnlTotal / unit;
 
     let trades = 0;
     for(const c of COINS){
@@ -169,7 +177,6 @@ function buildRows(rawRows){
 
     tmp.push({ tsISO: t.toISOString(), hourISO, u_total, trades });
   }
-  tmp.sort((a,b) => a.tsISO < b.tsISO ? -1 : a.tsISO > b.tsISO ? 1 : 0);
   return tmp;
 }
 
@@ -277,9 +284,9 @@ function renderCalendar(){
 
 // ── Load & boot ───────────────────────────────────────────────────────────────
 
-async function loadCSV(){
+function fetchCSV(path){
   return new Promise((res,rej) => {
-    Papa.parse(CSV_PATH, {
+    Papa.parse(path, {
       header:true, dynamicTyping:true, download:true, skipEmptyLines:true,
       complete:(o) => res(o.data), error:(e) => rej(e),
     });
@@ -288,10 +295,17 @@ async function loadCSV(){
 
 (async () => {
   try{
-    const raw = await loadCSV();
-    if(!raw?.length) throw new Error('CSV vacío');
+    const [rawOld, rawMeta] = await Promise.all([
+      fetchCSV(CSV_OLD).catch(() => []),
+      fetchCSV(CSV_META).catch(() => []),
+    ]);
 
-    ROWS = buildRows(raw);
+    const sliceOld  = buildRowsSlice(rawOld,  true);
+    const sliceMeta = buildRowsSlice(rawMeta, false);
+
+    ROWS = [...sliceOld, ...sliceMeta]
+      .sort((a,b) => a.tsISO < b.tsISO ? -1 : a.tsISO > b.tsISO ? 1 : 0);
+
     if(!ROWS.length) throw new Error('Sin filas útiles');
 
     const dLast = new Date(ROWS[ROWS.length-1].tsISO);
