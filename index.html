@@ -146,24 +146,112 @@ function ymdUTC(d){
     + String(d.getUTCDate()).padStart(2,'0');
 }
 
-// ── Build rows — reads pre-computed pnl_total + signals from CSV ──────────────
-// before=true  → keep rows with date <  CUTOFF_DATE (results.csv,    unit=UNIT_OLD)
-// before=false → keep rows with date >= CUTOFF_DATE (meta_results.csv, unit=UNIT_META)
+// ── Old-data (results.csv) computation rules — mirrors kazam.html ────────────
+const TH = { "BTCUSDT": 0.51599, "ETHUSDT": 0.509294, "XRPUSDT": 0.50813 };
+const PROFIT_F              = 0.885;
+const XRP_PAYOUT_START_UTC  = "2026-04-16";
+const XRP_PROFIT_F          = 0.851;
+const XRP_THRESHOLD_F       = 0.52217;
+const STAKE_MULT_BY_WEEKDAY = { "Wednesday": 1.5, "Saturday": 2.25 };
+const STAKE_MULT_BY_DATE    = { "2026-02-06": 0.0 };
+const WED_NO_MULT_START_UTC = "2026-03-01";
+const THU_OFF_START_UTC     = "2026-02-01";
 
-function buildRowsSlice(rawRows, before){
+function weekdayNameUTC(d){
+  return new Intl.DateTimeFormat('en-US',{weekday:'long',timeZone:'UTC'}).format(d);
+}
+function profitFactorForCoin(coin, ymd){
+  return (coin === "XRPUSDT" && ymd >= XRP_PAYOUT_START_UTC) ? XRP_PROFIT_F : PROFIT_F;
+}
+function thresholdForCoin(coin, ymd){
+  const base = TH[coin];
+  if(base === undefined) return undefined;
+  return (coin === "XRPUSDT" && ymd >= XRP_PAYOUT_START_UTC) ? XRP_THRESHOLD_F : base;
+}
+function stakeMultForDate(d){
+  const ymd = ymdUTC(d);
+  if(Object.prototype.hasOwnProperty.call(STAKE_MULT_BY_DATE, ymd)) return Number(STAKE_MULT_BY_DATE[ymd]);
+  const wd = weekdayNameUTC(d);
+  if(wd === "Wednesday" && ymd >= WED_NO_MULT_START_UTC) return 1.0;
+  if(wd === "Thursday"  && ymd >= THU_OFF_START_UTC)     return 0.0;
+  return Number(STAKE_MULT_BY_WEEKDAY[wd] ?? 1.0);
+}
+function computeSignal(pu, pd, th){
+  if(pu >= th && pu >= pd) return 1;
+  if(pd >= th && pd >= pu) return -1;
+  return 0;
+}
+function listCoins(headers){
+  const s = new Set();
+  for(const h of headers){
+    if(h.startsWith('prob_up_'))   s.add(h.slice(8));
+    if(h.startsWith('prob_down_')) s.add(h.slice(10));
+    if(h.startsWith('actual_'))    s.add(h.slice(7));
+    if(h.startsWith('signal_'))    s.add(h.slice(7));
+  }
+  const arr = [...s].sort();
+  return arr.length ? arr : COINS.slice();
+}
+
+// Old data: re-compute PnL from prob/actual using kazam rules; rows < CUTOFF_DATE
+function buildOldRows(rawRows){
   if(!rawRows?.length) return [];
-  const unit = before ? UNIT_OLD : UNIT_META;
-  const tmp  = [];
+  const headers = Object.keys(rawRows[0]);
+  const coins   = listCoins(headers);
+  const tmp = [];
   for(const r of rawRows){
     const t = parseTsAsUTC(r['timestamp']);
     if(isNaN(t)) continue;
     if(t.getUTCDay() === 1 && t.getUTCHours() === 0) continue;
     const ymd = ymdUTC(t);
-    if( before && ymd >= CUTOFF_DATE) continue;
-    if(!before && ymd <  CUTOFF_DATE) continue;
+    if(ymd >= CUTOFF_DATE) continue;
 
-    const pnlTotal = toNumber(r['pnl_total']) ?? 0;
-    const u_total  = pnlTotal / unit;
+    const mult = stakeMultForDate(t);
+    let pnl = 0, trades = 0;
+    for(const c of coins){
+      const puRaw  = toNumber(r['prob_up_'+c]);
+      const pdRaw  = toNumber(r['prob_down_'+c]);
+      const actRaw = toNumber(r['actual_'+c]);
+      const actual = actRaw === null ? 0 : (actRaw | 0);
+
+      let signal;
+      const th = thresholdForCoin(c, ymd);
+      if((('prob_up_'+c) in r || ('prob_down_'+c) in r) && th !== undefined){
+        signal = computeSignal(puRaw === null ? -Infinity : puRaw, pdRaw === null ? -Infinity : pdRaw, th);
+      } else {
+        const sigRaw = toNumber(r['signal_'+c]);
+        signal = sigRaw === null ? 0 : (sigRaw | 0);
+        if(signal !== -1 && signal !== 0 && signal !== 1) signal = 0;
+      }
+
+      if(signal !== 0){
+        const hit = signal === actual;
+        pnl += hit ? UNIT_OLD * mult * profitFactorForCoin(c, ymd) : -UNIT_OLD * mult;
+        trades++;
+      }
+    }
+
+    const hourISO = new Date(Date.UTC(
+      t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), t.getUTCHours()
+    )).toISOString();
+
+    tmp.push({ tsISO: t.toISOString(), hourISO, u_total: pnl / UNIT_OLD, trades });
+  }
+  return tmp;
+}
+
+// New data: read pre-computed pnl_total directly; rows >= CUTOFF_DATE
+function buildMetaRows(rawRows){
+  if(!rawRows?.length) return [];
+  const tmp = [];
+  for(const r of rawRows){
+    const t = parseTsAsUTC(r['timestamp']);
+    if(isNaN(t)) continue;
+    if(t.getUTCDay() === 1 && t.getUTCHours() === 0) continue;
+    const ymd = ymdUTC(t);
+    if(ymd < CUTOFF_DATE) continue;
+
+    const u_total = (toNumber(r['pnl_total']) ?? 0) / UNIT_META;
 
     let trades = 0;
     for(const c of COINS){
@@ -300,8 +388,8 @@ function fetchCSV(path){
       fetchCSV(CSV_META).catch(() => []),
     ]);
 
-    const sliceOld  = buildRowsSlice(rawOld,  true);
-    const sliceMeta = buildRowsSlice(rawMeta, false);
+    const sliceOld  = buildOldRows(rawOld);
+    const sliceMeta = buildMetaRows(rawMeta);
 
     ROWS = [...sliceOld, ...sliceMeta]
       .sort((a,b) => a.tsISO < b.tsISO ? -1 : a.tsISO > b.tsISO ? 1 : 0);
