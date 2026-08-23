@@ -114,6 +114,14 @@ const CUTOFF_DATE = '2026-05-26';
 // MXN por unidad por cada 10k MXN invertidos
 const CLIENT_MXN_PER_UNIT_PER_10K = 70;
 
+// Ajustes manuales de unidades por día (UTC, 'YYYY-MM-DD').
+// Positivo = suma unidades, negativo = resta unidades.
+// Se aplican sobre el total del día (y por lo tanto sobre el total del mes).
+const UNIT_ADJUSTMENTS = {
+  '2026-08-22': -1.0,
+  // '2026-06-03': +2,
+};
+
 const $$ = (s, r=document) => r.querySelector(s);
 const fmtNum = (n) => new Intl.NumberFormat('es-MX', {maximumFractionDigits:2}).format(n);
 
@@ -281,6 +289,16 @@ function summarizeByDay_Hours(rows){
     o.trades += r.trades;
     byDay.set(key, o);
   }
+
+  // Ajustes manuales: crean el día si no existe en los datos
+  for(const [key, delta] of Object.entries(UNIT_ADJUSTMENTS)){
+    const n = toNumber(delta);
+    if(n === null || n === 0) continue;
+    const o = byDay.get(key) || {u:0, hours:0, trades:0};
+    o.u += n;
+    byDay.set(key, o);
+  }
+
   return byDay;
 }
 
