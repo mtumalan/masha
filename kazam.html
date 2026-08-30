@@ -43,7 +43,6 @@
       <span id="bankBadge" class="badge">Banco: —</span>
       <span id="unitBadge" class="badge">Unidad: —</span>
       <span id="monthUnits" class="badge">Mes: — u</span>
-      <span id="clientPayout" class="badge">Payout mes: — MXN</span>
     </div>
   </header>
   <section class="panel">
@@ -59,14 +58,13 @@
     <div class="note">Todo en pesos. Banco inicial $10,000 MXN (2026-01-01), componiendo:
     la unidad de apuesta es 2.925% del banco (cap $1,250 MXN) y crece con él — la unidad
     vigente se muestra arriba y en cada mes. Las unidades del calendario son por apuesta
-    (gana +0.82u, pierde −1u); el payout del cliente es 130 MXN por unidad.
+    (gana +0.82u, pierde −1u).
     Histórico = walk-forward del modelo; desde 2026-08-31, resultados reales (VIVO).</div>
   </section>
 </div>
 <script>
 const _TS = Date.now();
 const CSV_NEW = `data/bag_results.csv?_=${_TS}`;
-const MXN_PER_UNIT = 130;          // pago al cliente por unidad
 const NEW_ERA_START = '2026-08-31';
 const RATIO = 0.02925;             // unidad = 2.925% del banco (MXN)
 const UNIT_CAP = 1250;             // tope de unidad (MXN)
@@ -163,11 +161,6 @@ function render(){
   mb.classList.toggle('negative', mu<0);
   $$('#bankBadge').textContent = bankEnd ? `Banco: $${fmt(Math.round(bankEnd))} MXN` : 'Banco: —';
   $$('#unitBadge').textContent = unitEnd ? `Unidad: $${fmt(Math.round(unitEnd))} MXN` : 'Unidad: —';
-  const pay = mu * MXN_PER_UNIT;
-  const pb = $$('#clientPayout');
-  pb.textContent = `Payout mes: ${pay>0?'+':''}${fmt(Math.round(pay))} MXN`;
-  pb.classList.toggle('positive', pay>0);
-  pb.classList.toggle('negative', pay<0);
   $$('#eraBadge').textContent = isLive ? 'VIVO' : 'histórico (walk-forward)';
 }
 
