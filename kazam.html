@@ -4,556 +4,177 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>KAZAM</title>
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <style>
-    :root{
-      --bg:#f3f5f8; --ink:#1f2937; --muted:#6b7280; --panel:#ffffff; --border:#d1d5db;
-      --good:#15803d; --bad:#b91c1c;
-    }
+    :root{--bg:#0e1420;--panel:#141c2c;--ink:#e8edf6;--muted:#93a1b8;--border:#243049;
+          --green:#1fb970;--red:#e0526b}
     *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Helvetica,Arial,sans-serif}
-    .wrap{max-width:1000px;margin:32px auto;padding:0 16px}
-    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+    body{margin:0;background:var(--bg);color:var(--ink);
+         font:14px/1.45 "Segoe UI",system-ui,sans-serif;padding:20px}
+    .wrap{max-width:980px;margin:0 auto}
+    header{display:flex;align-items:center;justify-content:space-between;
+           margin-bottom:16px;gap:12px;flex-wrap:wrap}
     h1{font-size:18px;margin:0}
-    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px}
-
-    .cal-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px}
-    .cal-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    .cal-title h2{margin:0;font-size:15px}
-    .badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:999px;background:#f8fafc;font-size:12px;color:var(--ink)}
-    .badge.positive{border-color:var(--good);color:var(--good)}
-    .badge.negative{border-color:var(--bad);color:var(--bad)}
-    button{background:#f8fafc;color:var(--ink);border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;cursor:pointer}
-    button:hover{background:#eef2f7}
-
-    .seg{display:inline-flex;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden}
-    .seg button{padding:6px 10px;border:0;background:#f8fafc}
-    .seg button.active{background:#e6ecf5;border-left:1px solid #cbd5e1;border-right:1px solid #cbd5e1}
-
-    .cal-scroll{overflow:auto; -webkit-overflow-scrolling:touch}
-    .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));gap:8px;min-width:630px}
-    .cal-dow{font-size:11px;color:var(--muted);text-align:center;padding:6px 0;position:sticky;top:0;background:var(--panel);z-index:1}
-
-    .day{background:#f3f4f6;border:1px solid var(--border);border-radius:12px;padding:10px;display:flex;flex-direction:column;aspect-ratio:1/1}
+    .badge{background:var(--panel);border:1px solid var(--border);border-radius:999px;
+           padding:7px 12px;font-size:13px}
+    .badge.positive{border-color:rgba(31,185,112,.6);color:#7fe0b2}
+    .badge.negative{border-color:rgba(224,82,107,.6);color:#f2a0af}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
+    .cal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .cal-title{display:flex;gap:10px;align-items:center}
+    .cal-title h2{margin:0;font-size:16px;text-transform:capitalize}
+    button{background:#1a2234;color:var(--ink);border:1px solid var(--border);
+           border-radius:10px;padding:8px 12px;cursor:pointer}
+    button:hover{background:#223052}
+    #calGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+    .cal-dow{color:var(--muted);font-size:12px;text-align:center;padding:4px 0}
+    .day{border:1px solid var(--border);border-radius:10px;min-height:64px;padding:6px}
     .day.other{opacity:.35}
-    .day .n{font-size:12px;color:var(--muted)}
-    .day .u{margin-top:auto;font-weight:700}
-
-    @media (max-width: 900px){
-      .wrap{padding:0 12px}
-      .cal-grid{grid-template-columns:repeat(7,minmax(70px,1fr));gap:6px;min-width:490px}
-      .day{aspect-ratio:1/1;}
-    }
-    @media (max-width: 600px){
-      .cal-top{flex-direction:column;align-items:flex-start}
-      .cal-grid{grid-template-columns:repeat(7,minmax(56px,1fr));gap:5px;min-width:392px}
-      .day{padding:8px;}
-      .day .n{font-size:11px}
-      .day .u{font-size:12px}
-      h1{font-size:16px}
-      .cal-title h2{font-size:14px}
-      .badge{font-size:11px;padding:5px 8px}
-      button{padding:6px 8px}
-    }
+    .day .n{font-size:11px;color:var(--muted)}
+    .day .u{font-size:13px;font-weight:600;margin-top:6px}
+    .day .b{font-size:10px;color:var(--muted);margin-top:2px}
+    .note{color:var(--muted);font-size:12px;margin-top:12px}
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <h1>KAZAM</h1>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <label class="badge" style="cursor:pointer; user-select:none;">
-          <input id="thuOffToggle" type="checkbox" style="margin:0 8px 0 0; transform: translateY(1px);" />
-          Jueves OFF (desde Febrero 2026)
-        </label>
-        <span id="monthUnits" class="badge">Mes: — u</span>
-        <span id="monthTrades" class="badge">—</span>
-        <div class="seg" id="modeSeg">
-          <button data-mode="trade" class="active">Por trade</button>
-          <button data-mode="hour">Por hora</button>
-        </div>
-      </div>
-    </header>
-
-    <section class="panel">
-      <div class="cal-top">
-        <div class="cal-title">
-          <button id="prevMonth">◀</button>
-          <h2 id="calTitle">—</h2>
-          <button id="nextMonth">▶</button>
-        </div>
-      </div>
-      <div class="cal-scroll"><div class="cal-grid" id="calGrid">
-        <div class="cal-dow">Lun</div>
-        <div class="cal-dow">Mar</div>
-        <div class="cal-dow">Mié</div>
-        <div class="cal-dow">Jue</div>
-        <div class="cal-dow">Vie</div>
-        <div class="cal-dow">Sáb</div>
-        <div class="cal-dow">Dom</div>
-      </div></div>
-    </section>
-
-    <div class="panel" style="padding:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; width:100%; margin-top:8px;">
-      <span class="badge">Bank (MXN)</span>
-      <input id="bankInput" type="number" inputmode="numeric" min="0" step="100"
-            value="0"
-            style="background:#f8fafc;color:var(--ink);border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;max-width:180px" />
+<div class="wrap">
+  <header>
+    <h1>KAZAM</h1>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span id="bankBadge" class="badge">Banco: —</span>
+      <span id="monthUnits" class="badge">Mes: — u</span>
       <span id="clientPayout" class="badge">Payout mes: — MXN</span>
     </div>
-  </div>
-
+  </header>
+  <section class="panel">
+    <div class="cal-top">
+      <div class="cal-title">
+        <button id="prevMonth">&#9664;</button>
+        <h2 id="calTitle">—</h2>
+        <button id="nextMonth">&#9654;</button>
+      </div>
+      <span id="eraBadge" class="badge">—</span>
+    </div>
+    <div id="calGrid"></div>
+    <div class="note">Unidad de referencia $292.50 (sizing dinámico 2.925% del banco,
+    cap $1,250): un día que ganó con la unidad crecida vale más unidades.
+    Histórico = walk-forward del modelo (2025-03 → 2026-08-23, banco simulado desde $10,000).
+    Desde 2026-08-31: resultados reales del sistema en vivo. Payout cliente: 130 MXN por unidad.</div>
+  </section>
+</div>
 <script>
-// ===== Config (replica Python) =====
-const CSV_PATH = 'data/results.csv';
+const _TS = Date.now();
+const CSV_NEW = `data/bag_results.csv?_=${_TS}`;
+const UREF = 292.50;               // unidad de referencia (multiplicador aplicado)
+const MXN_PER_UNIT = 130;          // pago al cliente por unidad
+const NEW_ERA_START = '2026-08-31';
+const BANK0_LIVE = 10000;
 
-// Python params
-const COINS_DEFAULT = ["BTCUSDT","XRPUSDT","ETHUSDT"];
-const TH = {
-  "BTCUSDT": 0.51599,
-  "ETHUSDT": 0.509294,
-  "XRPUSDT": 0.50813,
-};
+// Historico anette (sim causal con sizing dinamico): {ymd:{u,usd,trades,bank}}
+const HIST = {"2025-03-01": {"u": -2.6849, "usd": -785.34, "trades": 7, "bank": 9214.66}, "2025-03-02": {"u": 1.5259, "usd": 446.32, "trades": 2, "bank": 9660.98}, "2025-03-03": {"u": -0.8796, "usd": -257.29, "trades": 8, "bank": 9403.69}, "2025-03-04": {"u": 0.7728, "usd": 226.04, "trades": 7, "bank": 9629.73}, "2025-03-05": {"u": -0.337, "usd": -98.57, "trades": 3, "bank": 9531.16}, "2025-03-06": {"u": -0.7818, "usd": -228.67, "trades": 1, "bank": 9302.5}, "2025-03-07": {"u": -0.3845, "usd": -112.47, "trades": 2, "bank": 9190.03}, "2025-03-08": {"u": -2.4204, "usd": -707.96, "trades": 9, "bank": 8482.07}, "2025-03-09": {"u": -0.4049, "usd": -118.43, "trades": 8, "bank": 8363.64}, "2025-03-10": {"u": -0.5294, "usd": -154.84, "trades": 1, "bank": 8208.8}, "2025-03-11": {"u": 0.6599, "usd": 193.01, "trades": 1, "bank": 8401.81}, "2025-03-12": {"u": 2.2064, "usd": 645.37, "trades": 6, "bank": 9047.19}, "2025-03-13": {"u": 1.3331, "usd": 389.93, "trades": 7, "bank": 9437.11}, "2025-03-14": {"u": 2.3769, "usd": 695.25, "trades": 4, "bank": 10132.36}, "2025-03-15": {"u": -1.0717, "usd": -313.47, "trades": 6, "bank": 9818.89}, "2025-03-16": {"u": 0.9091, "usd": 265.9, "trades": 6, "bank": 10084.79}, "2025-03-18": {"u": -0.455, "usd": -133.09, "trades": 4, "bank": 9951.71}, "2025-03-19": {"u": 2.7359, "usd": 800.24, "trades": 4, "bank": 10751.95}, "2025-03-20": {"u": -1.5298, "usd": -447.46, "trades": 4, "bank": 10304.49}, "2025-03-21": {"u": 1.4642, "usd": 428.28, "trades": 2, "bank": 10732.77}, "2025-03-22": {"u": 1.8185, "usd": 531.93, "trades": 3, "bank": 11264.7}, "2025-03-23": {"u": -0.8045, "usd": -235.33, "trades": 12, "bank": 11029.37}, "2025-03-24": {"u": 2.8464, "usd": 832.56, "trades": 6, "bank": 11861.93}, "2025-03-25": {"u": -1.252, "usd": -366.2, "trades": 2, "bank": 11495.73}, "2025-03-26": {"u": 0.1596, "usd": 46.7, "trades": 2, "bank": 11542.43}, "2025-03-27": {"u": -0.1953, "usd": -57.12, "trades": 2, "bank": 11485.3}, "2025-03-28": {"u": -0.493, "usd": -144.2, "trades": 8, "bank": 11341.1}, "2025-03-29": {"u": -1.5449, "usd": -451.87, "trades": 11, "bank": 10889.23}, "2025-03-30": {"u": 1.5203, "usd": 444.7, "trades": 2, "bank": 11333.92}, "2025-03-31": {"u": -0.1265, "usd": -37.0, "trades": 4, "bank": 11296.92}, "2025-04-01": {"u": -1.287, "usd": -376.45, "trades": 4, "bank": 10920.47}, "2025-04-02": {"u": 3.5584, "usd": 1040.83, "trades": 5, "bank": 11961.31}, "2025-04-03": {"u": 2.3609, "usd": 690.56, "trades": 3, "bank": 12651.86}, "2025-04-04": {"u": 0.2915, "usd": 85.27, "trades": 2, "bank": 12737.14}, "2025-04-05": {"u": 2.4294, "usd": 710.6, "trades": 5, "bank": 13447.74}, "2025-04-06": {"u": -3.3469, "usd": -978.95, "trades": 10, "bank": 12468.78}, "2025-04-07": {"u": -0.8773, "usd": -256.6, "trades": 5, "bank": 12212.18}, "2025-04-08": {"u": 2.8687, "usd": 839.1, "trades": 5, "bank": 13051.28}, "2025-04-09": {"u": -3.6767, "usd": -1075.44, "trades": 6, "bank": 11975.84}, "2025-04-10": {"u": 1.0132, "usd": 296.35, "trades": 2, "bank": 12272.2}, "2025-04-11": {"u": -0.637, "usd": -186.32, "trades": 1, "bank": 12085.88}, "2025-04-12": {"u": 0.3058, "usd": 89.45, "trades": 5, "bank": 12175.33}, "2025-04-13": {"u": 2.3321, "usd": 682.14, "trades": 7, "bank": 12857.48}, "2025-04-14": {"u": 0.5497, "usd": 160.79, "trades": 1, "bank": 13018.27}, "2025-04-15": {"u": -3.2613, "usd": -953.92, "trades": 7, "bank": 12064.34}, "2025-04-16": {"u": 1.0197, "usd": 298.25, "trades": 1, "bank": 12362.6}, "2025-04-17": {"u": 0.8134, "usd": 237.91, "trades": 1, "bank": 12600.51}, "2025-04-18": {"u": -0.6465, "usd": -189.12, "trades": 1, "bank": 12411.39}, "2025-04-19": {"u": -0.0383, "usd": -11.2, "trades": 5, "bank": 12400.2}, "2025-04-20": {"u": -1.8185, "usd": -531.91, "trades": 7, "bank": 11868.28}, "2025-04-21": {"u": -0.7878, "usd": -230.43, "trades": 3, "bank": 11637.85}, "2025-04-22": {"u": 1.5596, "usd": 456.18, "trades": 2, "bank": 12094.03}, "2025-04-23": {"u": -1.2954, "usd": -378.9, "trades": 3, "bank": 11715.13}, "2025-04-24": {"u": -0.0522, "usd": -15.28, "trades": 6, "bank": 11699.85}, "2025-04-25": {"u": -0.4446, "usd": -130.06, "trades": 2, "bank": 11569.8}, "2025-04-26": {"u": 1.0272, "usd": 300.45, "trades": 6, "bank": 11870.25}, "2025-04-27": {"u": 1.7709, "usd": 517.99, "trades": 7, "bank": 12388.24}, "2025-04-28": {"u": 0.2846, "usd": 83.24, "trades": 3, "bank": 12471.47}, "2025-04-29": {"u": -0.6619, "usd": -193.61, "trades": 1, "bank": 12277.86}, "2025-05-01": {"u": -2.6689, "usd": -780.66, "trades": 3, "bank": 11497.21}, "2025-05-02": {"u": -1.3879, "usd": -405.97, "trades": 3, "bank": 11091.23}, "2025-05-03": {"u": 1.1627, "usd": 340.08, "trades": 6, "bank": 11431.32}, "2025-05-04": {"u": 1.435, "usd": 419.74, "trades": 4, "bank": 11851.06}, "2025-05-05": {"u": 1.3174, "usd": 385.34, "trades": 2, "bank": 12236.4}, "2025-05-06": {"u": -1.3534, "usd": -395.88, "trades": 3, "bank": 11840.52}, "2025-05-07": {"u": 0.8307, "usd": 242.99, "trades": 1, "bank": 12083.51}, "2025-05-08": {"u": -0.1156, "usd": -33.8, "trades": 4, "bank": 12049.71}, "2025-05-09": {"u": -0.2039, "usd": -59.65, "trades": 2, "bank": 11990.06}, "2025-05-10": {"u": 1.5903, "usd": 465.17, "trades": 2, "bank": 12455.23}, "2025-05-12": {"u": -0.0745, "usd": -21.8, "trades": 2, "bank": 12433.44}, "2025-05-13": {"u": 1.2558, "usd": 367.33, "trades": 3, "bank": 12800.76}, "2025-05-15": {"u": -1.6631, "usd": -486.46, "trades": 5, "bank": 12314.3}, "2025-05-16": {"u": -2.9998, "usd": -877.44, "trades": 7, "bank": 11436.86}, "2025-05-17": {"u": 1.5481, "usd": 452.83, "trades": 4, "bank": 11889.69}, "2025-05-18": {"u": 1.3665, "usd": 399.69, "trades": 8, "bank": 12289.38}, "2025-05-19": {"u": 0.6023, "usd": 176.18, "trades": 1, "bank": 12465.56}, "2025-05-20": {"u": -0.1359, "usd": -39.75, "trades": 2, "bank": 12425.8}, "2025-05-21": {"u": 0.7865, "usd": 230.06, "trades": 1, "bank": 12655.87}, "2025-05-22": {"u": 1.7038, "usd": 498.36, "trades": 4, "bank": 13154.23}, "2025-05-23": {"u": -4.9114, "usd": -1436.6, "trades": 11, "bank": 11717.63}, "2025-05-24": {"u": 0.51, "usd": 149.18, "trades": 5, "bank": 11866.8}, "2025-05-25": {"u": -1.3028, "usd": -381.08, "trades": 5, "bank": 11485.72}, "2025-05-26": {"u": 2.1164, "usd": 619.04, "trades": 5, "bank": 12104.76}, "2025-05-27": {"u": -0.3039, "usd": -88.88, "trades": 2, "bank": 12015.88}, "2025-05-28": {"u": -0.4732, "usd": -138.41, "trades": 2, "bank": 11877.46}, "2025-05-29": {"u": -0.3988, "usd": -116.65, "trades": 2, "bank": 11760.81}, "2025-05-30": {"u": -0.2323, "usd": -67.94, "trades": 4, "bank": 11692.88}, "2025-05-31": {"u": -0.6346, "usd": -185.63, "trades": 6, "bank": 11507.25}, "2025-06-01": {"u": -0.0962, "usd": -28.14, "trades": 2, "bank": 11479.12}, "2025-06-02": {"u": -2.789, "usd": -815.79, "trades": 3, "bank": 10663.33}, "2025-06-03": {"u": 0.2094, "usd": 61.24, "trades": 2, "bank": 10724.57}, "2025-06-04": {"u": 0.4954, "usd": 144.9, "trades": 1, "bank": 10869.47}, "2025-06-05": {"u": 1.2924, "usd": 378.04, "trades": 9, "bank": 11247.51}, "2025-06-07": {"u": 0.5619, "usd": 164.36, "trades": 8, "bank": 11411.87}, "2025-06-08": {"u": -1.9937, "usd": -583.16, "trades": 6, "bank": 10828.71}, "2025-06-09": {"u": -1.0829, "usd": -316.74, "trades": 1, "bank": 10511.97}, "2025-06-10": {"u": 0.8601, "usd": 251.57, "trades": 1, "bank": 10763.54}, "2025-06-11": {"u": 1.251, "usd": 365.92, "trades": 2, "bank": 11129.46}, "2025-06-12": {"u": -1.7816, "usd": -521.13, "trades": 6, "bank": 10608.33}, "2025-06-13": {"u": 0.456, "usd": 133.39, "trades": 3, "bank": 10741.72}, "2025-06-14": {"u": 0.7416, "usd": 216.93, "trades": 1, "bank": 10958.65}, "2025-06-15": {"u": 0.8085, "usd": 236.5, "trades": 3, "bank": 11195.15}, "2025-06-16": {"u": 2.1413, "usd": 626.34, "trades": 10, "bank": 11821.49}, "2025-06-17": {"u": -1.1267, "usd": -329.56, "trades": 3, "bank": 11491.93}, "2025-06-19": {"u": 0.2938, "usd": 85.93, "trades": 3, "bank": 11577.86}, "2025-06-20": {"u": 1.5318, "usd": 448.04, "trades": 4, "bank": 12025.9}, "2025-06-21": {"u": -0.4983, "usd": -145.74, "trades": 4, "bank": 11880.16}, "2025-06-22": {"u": 1.1272, "usd": 329.71, "trades": 3, "bank": 12209.87}, "2025-06-23": {"u": 2.3528, "usd": 688.19, "trades": 3, "bank": 12898.06}, "2025-06-25": {"u": -0.1587, "usd": -46.41, "trades": 4, "bank": 12851.65}, "2025-06-26": {"u": 0.8017, "usd": 234.5, "trades": 1, "bank": 13086.15}, "2025-06-27": {"u": 1.3197, "usd": 386.01, "trades": 2, "bank": 13472.16}, "2025-06-28": {"u": 0.8427, "usd": 246.48, "trades": 1, "bank": 13718.64}, "2025-06-29": {"u": -1.8364, "usd": -537.14, "trades": 6, "bank": 13181.51}, "2025-07-01": {"u": 0.637, "usd": 186.32, "trades": 1, "bank": 13367.82}, "2025-07-02": {"u": 1.6975, "usd": 496.53, "trades": 4, "bank": 13864.35}, "2025-07-04": {"u": -0.4535, "usd": -132.64, "trades": 7, "bank": 13731.71}, "2025-07-05": {"u": -0.7821, "usd": -228.77, "trades": 1, "bank": 13502.94}, "2025-07-06": {"u": 1.3374, "usd": 391.19, "trades": 4, "bank": 13894.13}, "2025-07-07": {"u": -0.7102, "usd": -207.74, "trades": 1, "bank": 13686.4}, "2025-07-08": {"u": 1.3333, "usd": 389.98, "trades": 2, "bank": 14076.38}, "2025-07-09": {"u": -1.2364, "usd": -361.65, "trades": 1, "bank": 13714.73}, "2025-07-10": {"u": 0.9425, "usd": 275.69, "trades": 1, "bank": 13990.42}, "2025-07-11": {"u": -0.0758, "usd": -22.16, "trades": 2, "bank": 13968.25}, "2025-07-12": {"u": 1.6366, "usd": 478.7, "trades": 6, "bank": 14446.95}, "2025-07-13": {"u": 1.9749, "usd": 577.65, "trades": 2, "bank": 15024.61}, "2025-07-14": {"u": 0.4679, "usd": 136.87, "trades": 3, "bank": 15161.48}, "2025-07-15": {"u": -0.8327, "usd": -243.57, "trades": 2, "bank": 14917.91}, "2025-07-16": {"u": -0.1249, "usd": -36.54, "trades": 2, "bank": 14881.36}, "2025-07-17": {"u": -2.003, "usd": -585.87, "trades": 2, "bank": 14295.49}, "2025-07-18": {"u": 0.3155, "usd": 92.27, "trades": 3, "bank": 14387.77}, "2025-07-19": {"u": 1.1772, "usd": 344.33, "trades": 1, "bank": 14732.09}, "2025-07-20": {"u": -1.1143, "usd": -325.93, "trades": 3, "bank": 14406.17}, "2025-07-21": {"u": 0.9512, "usd": 278.23, "trades": 1, "bank": 14684.4}, "2025-07-22": {"u": 1.9289, "usd": 564.22, "trades": 2, "bank": 15248.62}, "2025-07-23": {"u": -0.9438, "usd": -276.07, "trades": 1, "bank": 14972.54}, "2025-07-24": {"u": -2.6391, "usd": -771.93, "trades": 2, "bank": 14200.61}, "2025-07-25": {"u": -1.5267, "usd": -446.56, "trades": 5, "bank": 13754.06}, "2025-07-26": {"u": 2.5171, "usd": 736.25, "trades": 3, "bank": 14490.3}, "2025-07-27": {"u": 2.6796, "usd": 783.79, "trades": 5, "bank": 15274.09}, "2025-07-28": {"u": -0.3898, "usd": -114.01, "trades": 2, "bank": 15160.08}, "2025-07-30": {"u": -1.2832, "usd": -375.33, "trades": 1, "bank": 14784.75}, "2025-07-31": {"u": -2.8684, "usd": -839.0, "trades": 5, "bank": 13945.75}, "2025-08-01": {"u": 1.8623, "usd": 544.71, "trades": 2, "bank": 14490.46}, "2025-08-02": {"u": 2.1477, "usd": 628.2, "trades": 2, "bank": 15118.66}, "2025-08-03": {"u": -2.3903, "usd": -699.15, "trades": 2, "bank": 14419.51}, "2025-08-04": {"u": 0.0315, "usd": 9.2, "trades": 3, "bank": 14428.71}, "2025-08-06": {"u": 1.5609, "usd": 456.56, "trades": 2, "bank": 14885.28}, "2025-08-07": {"u": 2.2082, "usd": 645.91, "trades": 2, "bank": 15531.19}, "2025-08-08": {"u": 1.126, "usd": 329.37, "trades": 1, "bank": 15860.56}, "2025-08-09": {"u": 1.0443, "usd": 305.46, "trades": 1, "bank": 16166.02}, "2025-08-10": {"u": -3.9753, "usd": -1162.77, "trades": 9, "bank": 15003.25}, "2025-08-11": {"u": -2.585, "usd": -756.12, "trades": 2, "bank": 14247.13}, "2025-08-12": {"u": -0.0885, "usd": -25.89, "trades": 2, "bank": 14221.24}, "2025-08-13": {"u": 0.4501, "usd": 131.66, "trades": 3, "bank": 14352.9}, "2025-08-14": {"u": 1.2354, "usd": 361.36, "trades": 2, "bank": 14714.26}, "2025-08-16": {"u": 0.336, "usd": 98.29, "trades": 2, "bank": 14812.55}, "2025-08-17": {"u": 3.2569, "usd": 952.64, "trades": 5, "bank": 15765.19}, "2025-08-18": {"u": -0.9453, "usd": -276.49, "trades": 4, "bank": 15488.7}, "2025-08-19": {"u": 2.1839, "usd": 638.78, "trades": 4, "bank": 16127.48}, "2025-08-20": {"u": -1.0819, "usd": -316.45, "trades": 1, "bank": 15811.03}, "2025-08-21": {"u": 3.6457, "usd": 1066.36, "trades": 4, "bank": 16877.38}, "2025-08-22": {"u": -1.1139, "usd": -325.81, "trades": 3, "bank": 16551.57}, "2025-08-23": {"u": -2.5122, "usd": -734.82, "trades": 5, "bank": 15816.75}, "2025-08-24": {"u": 0.5548, "usd": 162.27, "trades": 9, "bank": 15979.03}, "2025-08-25": {"u": 0.6069, "usd": 177.52, "trades": 3, "bank": 16156.55}, "2025-08-26": {"u": 1.7412, "usd": 509.3, "trades": 2, "bank": 16665.84}, "2025-08-27": {"u": -1.6666, "usd": -487.48, "trades": 1, "bank": 16178.37}, "2025-08-28": {"u": 2.1838, "usd": 638.75, "trades": 3, "bank": 16817.12}, "2025-08-29": {"u": -3.0315, "usd": -886.72, "trades": 3, "bank": 15930.4}, "2025-08-30": {"u": 2.6862, "usd": 785.7, "trades": 5, "bank": 16716.11}, "2025-08-31": {"u": 1.3163, "usd": 385.03, "trades": 4, "bank": 17101.13}, "2025-09-01": {"u": -0.2374, "usd": -69.45, "trades": 2, "bank": 17031.69}, "2025-09-02": {"u": -1.9702, "usd": -576.28, "trades": 4, "bank": 16455.4}, "2025-09-03": {"u": 2.1384, "usd": 625.49, "trades": 2, "bank": 17080.89}, "2025-09-04": {"u": 0.3611, "usd": 105.64, "trades": 3, "bank": 17186.53}, "2025-09-05": {"u": -0.9702, "usd": -283.78, "trades": 1, "bank": 16902.75}, "2025-09-06": {"u": -0.3478, "usd": -101.72, "trades": 2, "bank": 16801.03}, "2025-09-07": {"u": 3.2535, "usd": 951.66, "trades": 6, "bank": 17752.69}, "2025-09-08": {"u": 0.9024, "usd": 263.95, "trades": 1, "bank": 18016.64}, "2025-09-11": {"u": -4.8249, "usd": -1411.29, "trades": 3, "bank": 16605.35}, "2025-09-12": {"u": 2.2297, "usd": 652.2, "trades": 6, "bank": 17257.55}, "2025-09-14": {"u": 1.0032, "usd": 293.45, "trades": 1, "bank": 17550.99}, "2025-09-15": {"u": 1.6553, "usd": 484.17, "trades": 2, "bank": 18035.16}, "2025-09-17": {"u": 1.0629, "usd": 310.89, "trades": 1, "bank": 18346.05}, "2025-09-19": {"u": -0.6753, "usd": -197.54, "trades": 2, "bank": 18148.51}, "2025-09-21": {"u": 3.3232, "usd": 972.05, "trades": 3, "bank": 19120.56}, "2025-09-22": {"u": -1.1769, "usd": -344.25, "trades": 1, "bank": 18776.31}, "2025-09-23": {"u": 3.2495, "usd": 950.47, "trades": 3, "bank": 19726.78}, "2025-09-24": {"u": -2.3902, "usd": -699.13, "trades": 5, "bank": 19027.65}, "2025-09-25": {"u": 1.4172, "usd": 414.53, "trades": 4, "bank": 19442.18}, "2025-09-26": {"u": 4.2916, "usd": 1255.3, "trades": 3, "bank": 20697.48}, "2025-09-27": {"u": 1.5331, "usd": 448.43, "trades": 1, "bank": 21145.9}, "2025-09-28": {"u": 0.614, "usd": 179.61, "trades": 4, "bank": 21325.51}, "2025-09-29": {"u": 0.7615, "usd": 222.73, "trades": 3, "bank": 21548.24}, "2025-09-30": {"u": 1.2244, "usd": 358.13, "trades": 1, "bank": 21906.37}, "2025-10-01": {"u": 4.4144, "usd": 1291.22, "trades": 3, "bank": 23197.59}, "2025-10-02": {"u": 6.9283, "usd": 2026.52, "trades": 4, "bank": 25224.11}, "2025-10-03": {"u": -8.6009, "usd": -2515.76, "trades": 6, "bank": 22708.35}, "2025-10-04": {"u": -0.4838, "usd": -141.51, "trades": 2, "bank": 22566.84}, "2025-10-05": {"u": 2.225, "usd": 650.82, "trades": 4, "bank": 23217.66}, "2025-10-07": {"u": -0.1043, "usd": -30.5, "trades": 2, "bank": 23187.15}, "2025-10-10": {"u": 2.5918, "usd": 758.09, "trades": 2, "bank": 23945.25}, "2025-10-11": {"u": 2.6974, "usd": 789.0, "trades": 2, "bank": 24734.25}, "2025-10-12": {"u": 5.1184, "usd": 1497.14, "trades": 3, "bank": 26231.39}, "2025-10-14": {"u": -0.4164, "usd": -121.79, "trades": 2, "bank": 26109.59}, "2025-10-16": {"u": 1.6509, "usd": 482.89, "trades": 1, "bank": 26592.48}, "2025-10-17": {"u": 5.3291, "usd": 1558.76, "trades": 3, "bank": 28151.24}, "2025-10-18": {"u": 5.2071, "usd": 1523.09, "trades": 3, "bank": 29674.33}, "2025-10-19": {"u": -4.4642, "usd": -1305.79, "trades": 3, "bank": 28368.54}, "2025-10-20": {"u": -1.8918, "usd": -553.34, "trades": 1, "bank": 27815.21}, "2025-10-21": {"u": -3.4732, "usd": -1015.91, "trades": 2, "bank": 26799.3}, "2025-10-22": {"u": -1.5261, "usd": -446.38, "trades": 1, "bank": 26352.92}, "2025-10-24": {"u": -6.0497, "usd": -1769.55, "trades": 4, "bank": 24583.37}, "2025-10-25": {"u": -2.2991, "usd": -672.48, "trades": 3, "bank": 23910.89}, "2025-10-26": {"u": -1.43, "usd": -418.28, "trades": 6, "bank": 23492.6}, "2025-10-29": {"u": 1.8602, "usd": 544.12, "trades": 1, "bank": 24036.72}, "2025-10-30": {"u": -1.6307, "usd": -476.98, "trades": 1, "bank": 23559.74}, "2025-10-31": {"u": -0.475, "usd": -138.94, "trades": 2, "bank": 23420.8}, "2025-11-01": {"u": -0.0538, "usd": -15.75, "trades": 4, "bank": 23405.06}, "2025-11-02": {"u": 11.3389, "usd": 3316.62, "trades": 9, "bank": 26721.68}, "2025-11-03": {"u": 3.0927, "usd": 904.61, "trades": 2, "bank": 27626.29}, "2025-11-04": {"u": -6.5696, "usd": -1921.61, "trades": 3, "bank": 25704.67}, "2025-11-05": {"u": -1.5468, "usd": -452.44, "trades": 1, "bank": 25252.24}, "2025-11-06": {"u": 0.4412, "usd": 129.05, "trades": 3, "bank": 25381.29}, "2025-11-08": {"u": -0.2492, "usd": -72.89, "trades": 2, "bank": 25308.4}, "2025-11-09": {"u": 0.636, "usd": 186.02, "trades": 7, "bank": 25494.42}, "2025-11-10": {"u": 1.0927, "usd": 319.62, "trades": 1, "bank": 25814.04}, "2025-11-11": {"u": -0.9095, "usd": -266.03, "trades": 2, "bank": 25548.01}, "2025-11-12": {"u": 1.7627, "usd": 515.6, "trades": 1, "bank": 26063.61}, "2025-11-13": {"u": -2.1396, "usd": -625.83, "trades": 3, "bank": 25437.78}, "2025-11-14": {"u": 3.7047, "usd": 1083.63, "trades": 3, "bank": 26521.41}, "2025-11-15": {"u": 3.8417, "usd": 1123.69, "trades": 2, "bank": 27645.1}, "2025-11-16": {"u": 2.2165, "usd": 648.33, "trades": 4, "bank": 28293.43}, "2025-11-17": {"u": 3.8653, "usd": 1130.59, "trades": 2, "bank": 29424.02}, "2025-11-18": {"u": 2.6279, "usd": 768.67, "trades": 2, "bank": 30192.69}, "2025-11-19": {"u": -2.4147, "usd": -706.29, "trades": 1, "bank": 29486.39}, "2025-11-20": {"u": -0.8126, "usd": -237.69, "trades": 2, "bank": 29248.71}, "2025-11-21": {"u": 0.1057, "usd": 30.92, "trades": 2, "bank": 29279.63}, "2025-11-22": {"u": 3.11, "usd": 909.67, "trades": 4, "bank": 30189.3}, "2025-11-23": {"u": -9.2125, "usd": -2694.66, "trades": 10, "bank": 27494.64}, "2025-11-24": {"u": -2.7495, "usd": -804.22, "trades": 1, "bank": 26690.42}, "2025-11-25": {"u": 1.1779, "usd": 344.55, "trades": 1, "bank": 27034.97}, "2025-11-27": {"u": 1.4905, "usd": 435.97, "trades": 1, "bank": 27470.93}, "2025-11-28": {"u": 4.32, "usd": 1263.61, "trades": 3, "bank": 28734.55}, "2025-11-29": {"u": -4.2745, "usd": -1250.3, "trades": 4, "bank": 27484.25}, "2025-11-30": {"u": -1.2039, "usd": -352.15, "trades": 2, "bank": 27132.1}, "2025-12-01": {"u": 5.6819, "usd": 1661.95, "trades": 4, "bank": 28794.05}, "2025-12-02": {"u": 1.6445, "usd": 481.02, "trades": 1, "bank": 29275.07}, "2025-12-03": {"u": 0.2041, "usd": 59.69, "trades": 2, "bank": 29334.76}, "2025-12-05": {"u": 1.2906, "usd": 377.51, "trades": 1, "bank": 29712.27}, "2025-12-06": {"u": 2.0644, "usd": 603.83, "trades": 1, "bank": 30316.09}, "2025-12-07": {"u": -0.2482, "usd": -72.59, "trades": 2, "bank": 30243.5}, "2025-12-08": {"u": 1.2774, "usd": 373.65, "trades": 1, "bank": 30617.15}, "2025-12-09": {"u": -3.5083, "usd": -1026.18, "trades": 2, "bank": 29590.97}, "2025-12-10": {"u": -5.8784, "usd": -1719.42, "trades": 2, "bank": 27871.55}, "2025-12-11": {"u": -10.1729, "usd": -2975.58, "trades": 5, "bank": 24895.97}, "2025-12-12": {"u": -0.8639, "usd": -252.69, "trades": 4, "bank": 24643.28}, "2025-12-13": {"u": 1.1168, "usd": 326.66, "trades": 1, "bank": 24969.94}, "2025-12-14": {"u": -2.1792, "usd": -637.42, "trades": 5, "bank": 24332.52}, "2025-12-16": {"u": 4.6214, "usd": 1351.75, "trades": 3, "bank": 25684.26}, "2025-12-18": {"u": 0.0711, "usd": 20.81, "trades": 3, "bank": 25705.07}, "2025-12-19": {"u": -0.4879, "usd": -142.7, "trades": 2, "bank": 25562.37}, "2025-12-21": {"u": -0.5274, "usd": -154.28, "trades": 2, "bank": 25408.09}, "2025-12-25": {"u": -0.8451, "usd": -247.19, "trades": 2, "bank": 25160.9}, "2025-12-26": {"u": 2.9989, "usd": 877.18, "trades": 2, "bank": 26038.08}, "2025-12-27": {"u": 3.7056, "usd": 1083.88, "trades": 2, "bank": 27121.96}, "2025-12-29": {"u": 0.7465, "usd": 218.36, "trades": 2, "bank": 27340.32}, "2025-12-30": {"u": 1.4942, "usd": 437.04, "trades": 1, "bank": 27777.36}, "2025-12-31": {"u": 3.0989, "usd": 906.43, "trades": 2, "bank": 28683.79}, "2026-01-01": {"u": 2.7888, "usd": 815.72, "trades": 2, "bank": 29499.51}, "2026-01-02": {"u": 1.7866, "usd": 522.58, "trades": 1, "bank": 30022.09}, "2026-01-03": {"u": -10.7407, "usd": -3141.64, "trades": 8, "bank": 26880.45}, "2026-01-04": {"u": 2.0797, "usd": 608.31, "trades": 4, "bank": 27488.76}, "2026-01-05": {"u": -2.7489, "usd": -804.05, "trades": 1, "bank": 26684.71}, "2026-01-06": {"u": 3.2039, "usd": 937.14, "trades": 4, "bank": 27621.86}, "2026-01-07": {"u": -0.1029, "usd": -30.09, "trades": 2, "bank": 27591.77}, "2026-01-08": {"u": 3.6258, "usd": 1060.56, "trades": 2, "bank": 28652.33}, "2026-01-09": {"u": 0.5531, "usd": 161.78, "trades": 2, "bank": 28814.1}, "2026-01-10": {"u": -2.2559, "usd": -659.85, "trades": 1, "bank": 28154.25}, "2026-01-11": {"u": 2.3035, "usd": 673.78, "trades": 1, "bank": 28828.03}, "2026-01-13": {"u": 2.7244, "usd": 796.9, "trades": 2, "bank": 29624.93}, "2026-01-14": {"u": 1.8578, "usd": 543.4, "trades": 1, "bank": 30168.32}, "2026-01-15": {"u": 2.4683, "usd": 721.98, "trades": 1, "bank": 30890.31}, "2026-01-16": {"u": 6.6178, "usd": 1935.7, "trades": 3, "bank": 32826.0}, "2026-01-17": {"u": 2.5843, "usd": 755.92, "trades": 1, "bank": 33581.92}, "2026-01-18": {"u": -4.4367, "usd": -1297.74, "trades": 3, "bank": 32284.18}, "2026-01-19": {"u": -4.4396, "usd": -1298.57, "trades": 2, "bank": 30985.61}, "2026-01-20": {"u": 0.8509, "usd": 248.88, "trades": 2, "bank": 31234.48}, "2026-01-21": {"u": 2.5283, "usd": 739.54, "trades": 1, "bank": 31974.02}, "2026-01-22": {"u": -1.6441, "usd": -480.91, "trades": 1, "bank": 31493.11}, "2026-01-23": {"u": 2.2468, "usd": 657.19, "trades": 1, "bank": 32150.3}, "2026-01-25": {"u": -1.1397, "usd": -333.36, "trades": 4, "bank": 31816.94}, "2026-01-26": {"u": 1.7719, "usd": 518.28, "trades": 1, "bank": 32335.23}, "2026-01-27": {"u": 4.9885, "usd": 1459.13, "trades": 2, "bank": 33794.35}, "2026-01-28": {"u": -0.48, "usd": -140.41, "trades": 2, "bank": 33653.94}, "2026-01-29": {"u": 0.0208, "usd": 6.1, "trades": 3, "bank": 33660.04}, "2026-01-30": {"u": -1.78, "usd": -520.64, "trades": 1, "bank": 33139.4}, "2026-01-31": {"u": -7.0661, "usd": -2066.84, "trades": 8, "bank": 31072.56}, "2026-02-01": {"u": -0.1215, "usd": -35.54, "trades": 9, "bank": 31037.02}, "2026-02-05": {"u": -11.8301, "usd": -3460.29, "trades": 10, "bank": 27576.72}, "2026-02-06": {"u": -1.8099, "usd": -529.4, "trades": 3, "bank": 27047.32}, "2026-02-07": {"u": -3.147, "usd": -920.51, "trades": 3, "bank": 26126.81}, "2026-02-08": {"u": 2.2256, "usd": 650.98, "trades": 5, "bank": 26777.8}, "2026-02-09": {"u": -0.8551, "usd": -250.13, "trades": 2, "bank": 26527.67}, "2026-02-11": {"u": -0.0801, "usd": -23.42, "trades": 2, "bank": 26504.25}, "2026-02-12": {"u": 2.6588, "usd": 777.71, "trades": 2, "bank": 27281.96}, "2026-02-13": {"u": -0.0986, "usd": -28.84, "trades": 2, "bank": 27253.12}, "2026-02-14": {"u": -2.1861, "usd": -639.44, "trades": 7, "bank": 26613.67}, "2026-02-15": {"u": 2.1925, "usd": 641.32, "trades": 9, "bank": 27254.99}, "2026-02-16": {"u": -2.7255, "usd": -797.21, "trades": 1, "bank": 26457.78}, "2026-02-18": {"u": -1.489, "usd": -435.55, "trades": 1, "bank": 26022.24}, "2026-02-20": {"u": 1.4541, "usd": 425.31, "trades": 1, "bank": 26447.55}, "2026-02-21": {"u": -1.6681, "usd": -487.93, "trades": 1, "bank": 25959.62}, "2026-02-22": {"u": -0.3512, "usd": -102.73, "trades": 2, "bank": 25856.89}, "2026-02-24": {"u": 1.1776, "usd": 344.45, "trades": 1, "bank": 26201.34}, "2026-02-25": {"u": 2.1415, "usd": 626.4, "trades": 1, "bank": 26827.74}, "2026-02-26": {"u": 1.1115, "usd": 325.13, "trades": 1, "bank": 27152.86}, "2026-02-27": {"u": 1.5779, "usd": 461.52, "trades": 1, "bank": 27614.39}, "2026-02-28": {"u": 2.082, "usd": 608.98, "trades": 5, "bank": 28223.36}, "2026-03-01": {"u": -1.05, "usd": -307.12, "trades": 3, "bank": 27916.24}, "2026-03-02": {"u": 1.61, "usd": 470.92, "trades": 1, "bank": 28387.16}, "2026-03-04": {"u": 2.3226, "usd": 679.36, "trades": 1, "bank": 29066.52}, "2026-03-05": {"u": 2.652, "usd": 775.71, "trades": 4, "bank": 29842.23}, "2026-03-06": {"u": -3.9558, "usd": -1157.07, "trades": 5, "bank": 28685.16}, "2026-03-07": {"u": 2.347, "usd": 686.49, "trades": 1, "bank": 29371.65}, "2026-03-08": {"u": 4.7744, "usd": 1396.51, "trades": 7, "bank": 30768.15}, "2026-03-10": {"u": 1.6735, "usd": 489.49, "trades": 1, "bank": 31257.64}, "2026-03-11": {"u": 0.0914, "usd": 26.72, "trades": 3, "bank": 31284.36}, "2026-03-12": {"u": 2.6225, "usd": 767.08, "trades": 3, "bank": 32051.45}, "2026-03-13": {"u": 3.15, "usd": 921.36, "trades": 2, "bank": 32972.81}, "2026-03-14": {"u": 2.0232, "usd": 591.78, "trades": 6, "bank": 33564.59}, "2026-03-15": {"u": 5.2311, "usd": 1530.1, "trades": 4, "bank": 35094.69}, "2026-03-17": {"u": 2.2725, "usd": 664.72, "trades": 1, "bank": 35759.41}, "2026-03-18": {"u": 2.3312, "usd": 681.86, "trades": 1, "bank": 36441.27}, "2026-03-21": {"u": 8.7955, "usd": 2572.69, "trades": 4, "bank": 39013.96}, "2026-03-22": {"u": -4.3988, "usd": -1286.66, "trades": 6, "bank": 37727.31}, "2026-03-24": {"u": 2.0095, "usd": 587.76, "trades": 3, "bank": 38315.07}, "2026-03-28": {"u": 3.9057, "usd": 1142.42, "trades": 2, "bank": 39457.49}, "2026-03-29": {"u": 4.3246, "usd": 1264.94, "trades": 2, "bank": 40722.43}, "2026-03-30": {"u": 3.2496, "usd": 950.52, "trades": 1, "bank": 41672.95}, "2026-03-31": {"u": -5.089, "usd": -1488.53, "trades": 3, "bank": 40184.43}, "2026-04-01": {"u": 0.5802, "usd": 169.71, "trades": 3, "bank": 40354.14}, "2026-04-02": {"u": 2.2451, "usd": 656.68, "trades": 1, "bank": 41010.82}, "2026-04-04": {"u": 2.8523, "usd": 834.29, "trades": 1, "bank": 41845.12}, "2026-04-05": {"u": -7.4543, "usd": -2180.39, "trades": 4, "bank": 39664.72}, "2026-04-07": {"u": 4.8455, "usd": 1417.3, "trades": 2, "bank": 41082.03}, "2026-04-08": {"u": -3.6193, "usd": -1058.65, "trades": 1, "bank": 40023.37}, "2026-04-09": {"u": 5.1569, "usd": 1508.39, "trades": 2, "bank": 41531.77}, "2026-04-10": {"u": -0.6339, "usd": -185.43, "trades": 4, "bank": 41346.34}, "2026-04-12": {"u": 1.578, "usd": 461.58, "trades": 7, "bank": 41807.91}, "2026-04-14": {"u": 5.1547, "usd": 1507.75, "trades": 2, "bank": 43315.66}, "2026-04-17": {"u": -3.0504, "usd": -892.25, "trades": 1, "bank": 42423.41}, "2026-04-18": {"u": 2.3272, "usd": 680.71, "trades": 5, "bank": 43104.12}, "2026-04-19": {"u": -0.9428, "usd": -275.78, "trades": 8, "bank": 42828.34}, "2026-04-21": {"u": 2.4457, "usd": 715.36, "trades": 1, "bank": 43543.7}, "2026-04-22": {"u": -6.0554, "usd": -1771.19, "trades": 2, "bank": 41772.51}, "2026-04-23": {"u": -2.1177, "usd": -619.43, "trades": 1, "bank": 41153.07}, "2026-04-24": {"u": -0.6365, "usd": -186.19, "trades": 4, "bank": 40966.89}, "2026-04-25": {"u": 5.716, "usd": 1671.94, "trades": 2, "bank": 42638.83}, "2026-04-26": {"u": 0.1629, "usd": 47.65, "trades": 3, "bank": 42686.48}, "2026-04-27": {"u": 2.6634, "usd": 779.05, "trades": 1, "bank": 43465.54}, "2026-04-29": {"u": 1.9063, "usd": 557.58, "trades": 1, "bank": 44023.12}, "2026-05-01": {"u": 6.2375, "usd": 1824.47, "trades": 3, "bank": 45847.59}, "2026-05-02": {"u": -2.2544, "usd": -659.4, "trades": 1, "bank": 45188.19}, "2026-05-03": {"u": 3.423, "usd": 1001.24, "trades": 3, "bank": 46189.43}, "2026-05-06": {"u": 3.2385, "usd": 947.28, "trades": 1, "bank": 47136.71}, "2026-05-07": {"u": -3.6147, "usd": -1057.3, "trades": 1, "bank": 46079.4}, "2026-05-08": {"u": -5.9895, "usd": -1751.92, "trades": 4, "bank": 44327.48}, "2026-05-09": {"u": 5.0695, "usd": 1482.84, "trades": 2, "bank": 45810.32}, "2026-05-10": {"u": -5.5846, "usd": -1633.48, "trades": 2, "bank": 44176.84}, "2026-05-13": {"u": 2.4387, "usd": 713.31, "trades": 1, "bank": 44890.15}, "2026-05-15": {"u": 2.1037, "usd": 615.33, "trades": 1, "bank": 45505.48}, "2026-05-22": {"u": -0.9245, "usd": -270.42, "trades": 2, "bank": 45235.06}, "2026-05-23": {"u": 2.1437, "usd": 627.05, "trades": 1, "bank": 45862.11}, "2026-05-25": {"u": -2.485, "usd": -726.85, "trades": 1, "bank": 45135.26}, "2026-05-26": {"u": -2.8706, "usd": -839.66, "trades": 1, "bank": 44295.59}, "2026-05-28": {"u": 2.4669, "usd": 721.57, "trades": 1, "bank": 45017.16}, "2026-05-29": {"u": 4.98, "usd": 1456.65, "trades": 2, "bank": 46473.82}, "2026-05-30": {"u": -0.3764, "usd": -110.11, "trades": 2, "bank": 46363.71}, "2026-05-31": {"u": 5.4829, "usd": 1603.75, "trades": 2, "bank": 47967.46}, "2026-06-01": {"u": 1.879, "usd": 549.61, "trades": 1, "bank": 48517.07}, "2026-06-02": {"u": -2.5407, "usd": -743.15, "trades": 1, "bank": 47773.92}, "2026-06-03": {"u": 1.6485, "usd": 482.19, "trades": 3, "bank": 48256.11}, "2026-06-04": {"u": -2.334, "usd": -682.7, "trades": 1, "bank": 47573.41}, "2026-06-05": {"u": 3.8776, "usd": 1134.2, "trades": 2, "bank": 48707.61}, "2026-06-06": {"u": 2.6091, "usd": 763.15, "trades": 1, "bank": 49470.76}, "2026-06-07": {"u": -3.5465, "usd": -1037.34, "trades": 5, "bank": 48433.42}, "2026-06-11": {"u": 1.7803, "usd": 520.74, "trades": 1, "bank": 48954.16}, "2026-06-12": {"u": -2.254, "usd": -659.3, "trades": 6, "bank": 48294.85}, "2026-06-13": {"u": 2.3429, "usd": 685.3, "trades": 1, "bank": 48980.15}, "2026-06-14": {"u": 11.7998, "usd": 3451.43, "trades": 4, "bank": 52431.58}, "2026-06-16": {"u": 3.4965, "usd": 1022.73, "trades": 1, "bank": 53454.31}, "2026-06-18": {"u": -0.4923, "usd": -144.0, "trades": 2, "bank": 53310.31}, "2026-06-19": {"u": 6.97, "usd": 2038.73, "trades": 5, "bank": 55349.04}, "2026-06-20": {"u": -0.6756, "usd": -197.62, "trades": 2, "bank": 55151.42}, "2026-06-21": {"u": 3.4965, "usd": 1022.73, "trades": 1, "bank": 56174.15}, "2026-06-23": {"u": -1.4921, "usd": -436.44, "trades": 2, "bank": 55737.71}, "2026-06-24": {"u": 2.356, "usd": 689.12, "trades": 1, "bank": 56426.83}, "2026-06-25": {"u": -0.4458, "usd": -130.4, "trades": 2, "bank": 56296.43}, "2026-06-26": {"u": 4.9751, "usd": 1455.22, "trades": 2, "bank": 57751.65}, "2026-06-27": {"u": -2.4195, "usd": -707.71, "trades": 4, "bank": 57043.95}, "2026-06-28": {"u": 1.6361, "usd": 478.57, "trades": 3, "bank": 57522.52}, "2026-07-02": {"u": 2.6635, "usd": 779.07, "trades": 1, "bank": 58301.59}, "2026-07-03": {"u": -6.1383, "usd": -1795.45, "trades": 2, "bank": 56506.14}, "2026-07-04": {"u": 2.6719, "usd": 781.54, "trades": 1, "bank": 57287.68}, "2026-07-06": {"u": -2.8909, "usd": -845.58, "trades": 1, "bank": 56442.1}, "2026-07-07": {"u": 0.9851, "usd": 288.14, "trades": 2, "bank": 56730.24}, "2026-07-08": {"u": -2.9445, "usd": -861.28, "trades": 1, "bank": 55868.97}, "2026-07-09": {"u": 1.7565, "usd": 513.79, "trades": 1, "bank": 56382.75}, "2026-07-10": {"u": 2.8745, "usd": 840.79, "trades": 4, "bank": 57223.54}, "2026-07-11": {"u": 3.4965, "usd": 1022.73, "trades": 1, "bank": 58246.27}, "2026-07-12": {"u": 2.3644, "usd": 691.6, "trades": 1, "bank": 58937.87}, "2026-07-14": {"u": 6.993, "usd": 2045.45, "trades": 2, "bank": 60983.32}, "2026-07-16": {"u": 6.5713, "usd": 1922.09, "trades": 2, "bank": 62905.42}, "2026-07-17": {"u": 2.6263, "usd": 768.2, "trades": 1, "bank": 63673.62}, "2026-07-18": {"u": -1.8092, "usd": -529.2, "trades": 4, "bank": 63144.42}, "2026-07-19": {"u": 2.1377, "usd": 625.28, "trades": 3, "bank": 63769.7}, "2026-07-21": {"u": -5.1464, "usd": -1505.31, "trades": 3, "bank": 62264.39}, "2026-07-23": {"u": -4.2735, "usd": -1250.0, "trades": 1, "bank": 61014.39}, "2026-07-24": {"u": 9.3782, "usd": 2743.12, "trades": 3, "bank": 63757.51}, "2026-07-25": {"u": -1.6676, "usd": -487.78, "trades": 2, "bank": 63269.73}, "2026-07-26": {"u": 9.269, "usd": 2711.19, "trades": 7, "bank": 65980.92}, "2026-07-27": {"u": -5.1519, "usd": -1506.92, "trades": 2, "bank": 64474.0}, "2026-07-28": {"u": 5.9797, "usd": 1749.06, "trades": 2, "bank": 66223.06}, "2026-07-31": {"u": 2.6822, "usd": 784.54, "trades": 1, "bank": 67007.6}, "2026-08-01": {"u": 3.4399, "usd": 1006.18, "trades": 1, "bank": 68013.77}, "2026-08-02": {"u": 5.3699, "usd": 1570.7, "trades": 2, "bank": 69584.48}, "2026-08-04": {"u": 2.3302, "usd": 681.58, "trades": 1, "bank": 70266.05}, "2026-08-05": {"u": 2.3594, "usd": 690.13, "trades": 1, "bank": 70956.18}, "2026-08-06": {"u": -3.7774, "usd": -1104.89, "trades": 1, "bank": 69851.29}, "2026-08-07": {"u": 8.0355, "usd": 2350.38, "trades": 3, "bank": 72201.67}, "2026-08-09": {"u": 8.0796, "usd": 2363.29, "trades": 3, "bank": 74564.96}, "2026-08-11": {"u": 1.8596, "usd": 543.93, "trades": 1, "bank": 75108.89}, "2026-08-12": {"u": 1.9367, "usd": 566.5, "trades": 1, "bank": 75675.38}, "2026-08-15": {"u": 3.4965, "usd": 1022.73, "trades": 1, "bank": 76698.11}, "2026-08-17": {"u": 4.9995, "usd": 1462.34, "trades": 2, "bank": 78160.45}, "2026-08-18": {"u": 3.4965, "usd": 1022.73, "trades": 1, "bank": 79183.18}, "2026-08-21": {"u": -4.7645, "usd": -1393.63, "trades": 3, "bank": 77789.56}, "2026-08-23": {"u": -4.1831, "usd": -1223.57, "trades": 1, "bank": 76565.99}};
 
-const UNIT     = 50;     // USD por unidad (stake base)
-const PROFIT_F = 0.885;  // payout base
-const XRP_PAYOUT_START_UTC = "2026-04-16"; // desde aquí XRP usa payout/threshold nuevos
-const XRP_PROFIT_F = 0.851;
-const XRP_THRESHOLD_F = 0.52217;
+const $$ = s => document.querySelector(s);
+const fmt = n => new Intl.NumberFormat('es-MX',{maximumFractionDigits:2}).format(n);
+let CAL = null, LIVE_DAYS = {};
 
-// Stake rules (prioridad: fecha exacta > weekday)
-const STAKE_MULT_BY_WEEKDAY = {
-  "Wednesday": 1.5,
-  "Saturday":  2.25,
-};
-const STAKE_MULT_BY_DATE = {
-  "2026-02-06": 0.0
-};
-const DEFAULT_STAKE_MULT = 1.0;
-const WED_NO_MULT_START_UTC = "2026-03-01";  // desde aquí, miércoles = 1.0
-
-const THU_OFF_START_UTC = "2026-02-01";  // YYYY-MM-DD
-let THU_OFF_ENABLED = true;             // lo controla el toggle
-
-// UI helpers
-const $$=(s,r=document)=>r.querySelector(s);
-const fmtNum=(n)=> new Intl.NumberFormat('es-MX',{maximumFractionDigits:2}).format(n);
-
-// ===== Cliente payout =====
-// MXN por unidad por cada 10k MXN
-const CLIENT_MXN_PER_UNIT_PER_10K = 130;
-
-function getBankMXN(){
-  const el = $$('#bankInput');
-  if(!el) return 0;
-  const v = Number(el.value);
-  return Number.isFinite(v) && v >= 0 ? v : 0;
+function parseCSV(text){
+  const lines = text.trim().split(/\r?\n/);
+  if(lines.length < 2) return [];
+  const h = lines[0].split(',');
+  return lines.slice(1).map(l => {
+    const c = l.split(','), o = {};
+    h.forEach((k,i)=>o[k]=c[i]);
+    return o;
+  });
 }
 
-// >>> CAMBIO CLAVE: ahora SÍ muestra pérdida cuando el mes es negativo
-// (ya no clamp a 0)
-function clientPayoutMXN(units, bankMXN){
-  const scale = bankMXN / 10000.0;
-  return units * CLIENT_MXN_PER_UNIT_PER_10K * scale;
-}
-
-function updateClientPayoutBadge(monthUnits){
-  const el = $$('#clientPayout');
-  if(!el) return;
-
-  const bankMXN = getBankMXN();
-  const payout  = clientPayoutMXN(monthUnits, bankMXN);
-
-  const sign = payout > 0 ? '+' : '';
-  el.textContent = `Payout mes: ${sign}${new Intl.NumberFormat('es-MX',{maximumFractionDigits:0}).format(payout)} MXN`;
-
-  el.classList.toggle('positive', payout > 0);
-  el.classList.toggle('negative', payout < 0);
-}
-
-let RAW=[];
-let ROWS=[];
-let CAL_CURRENT=null;
-let MODE='trade';
-let DATE_COL = null;
-
-// ---------- Parsing / utils ----------
-function toNumber(x){
-  if(x===null||x===undefined||x==='') return null;
-  if(typeof x === 'string'){
-    const t=x.trim().toLowerCase();
-    if(t==='-inf'||t==='inf'||t==='infinity'||t==='-infinity'||t==='nan') return null;
-  }
-  const n=Number(x);
-  return Number.isFinite(n)? n : null;
-}
-
-function parseTsAsUTC(x){
-  if(x == null) return new Date(NaN);
-  if(typeof x === 'number') return new Date(x);
-  const s = String(x).trim();
-  if(/[zZ]|[+\-]\d{2}:?\d{2}$/.test(s)) return new Date(s);
-  const s2 = s.replace(' ', 'T');
-  return new Date(s2 + 'Z');
-}
-
-function detectDateCol(cols){
-  const guess=['timestamp','ts','date','datetime'];
-  const lower=cols.map(c=>c.toLowerCase());
-  for(const g of guess){
-    const idx=lower.indexOf(g);
-    if(idx!==-1) return cols[idx];
-  }
-  return cols[0];
-}
-
-function listCoinsFromHeaders(headers){
-  const coins=new Set();
-  for(const h of headers){
-    if(h.startsWith('prob_up_')) coins.add(h.slice('prob_up_'.length));
-    if(h.startsWith('prob_down_')) coins.add(h.slice('prob_down_'.length));
-    if(h.startsWith('actual_')) coins.add(h.slice('actual_'.length));
-    if(h.startsWith('signal_')) coins.add(h.slice('signal_'.length));
-  }
-  const arr=[...coins].sort();
-  return arr.length ? arr : COINS_DEFAULT.slice();
-}
-
-function ymdUTC(d){
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
-    .toISOString().slice(0,10);
-}
-
-function weekdayNameUTC(d){
-  return new Intl.DateTimeFormat('en-US',{weekday:'long',timeZone:'UTC'}).format(d);
-}
-
-function profitFactorForCoinAtTsUTC(coin, d){
-  const dstr = ymdUTC(d);
-  if(coin === "XRPUSDT" && dstr >= XRP_PAYOUT_START_UTC){
-    return XRP_PROFIT_F;
-  }
-  return PROFIT_F;
-}
-
-function thresholdForCoinAtTsUTC(coin, d){
-  const baseTh = TH[coin];
-  if(baseTh === undefined) return undefined;
-  const dstr = ymdUTC(d);
-  if(coin === "XRPUSDT" && dstr >= XRP_PAYOUT_START_UTC){
-    return XRP_THRESHOLD_F;
-  }
-  return baseTh;
-}
-
-function stakeMultiplierForTsUTC(d){
-  const dstr = ymdUTC(d);
-
-  // prioridad: fecha exacta
-  if(Object.prototype.hasOwnProperty.call(STAKE_MULT_BY_DATE, dstr)){
-    return Number(STAKE_MULT_BY_DATE[dstr]);
-  }
-
-  const wd = weekdayNameUTC(d);
-
-  // Quitar multiplicador de miércoles a partir de marzo 2026
-  if(wd === "Wednesday" && dstr >= WED_NO_MULT_START_UTC){
-    return DEFAULT_STAKE_MULT;
-  }
-
-  // Thursday OFF solo si:
-  // - toggle encendido
-  // - fecha >= THU_OFF_START_UTC (comparación lexicográfica YYYY-MM-DD)
-  if(wd === "Thursday" && THU_OFF_ENABLED && dstr >= THU_OFF_START_UTC){
-    return 0.0;
-  }
-
-  return Number(STAKE_MULT_BY_WEEKDAY[wd] ?? DEFAULT_STAKE_MULT);
-}
-
-function isDroppedMondayFirstHourUTC(d){
-  return (d.getUTCDay() === 1) && (d.getUTCHours() === 0);
-}
-
-function computeSignal(probUp, probDown, th){
-  if(probUp >= th && probUp >= probDown) return 1;
-  if(probDown >= th && probDown >= probUp) return -1;
-  return 0;
-}
-
-function buildRowsLikePython(rawRows, dateCol){
-  if(!rawRows?.length) return [];
-
-  const headers = Object.keys(rawRows[0]);
-  const coins = listCoinsFromHeaders(headers);
-
-  const tmp = [];
-  for(const r of rawRows){
-    const t = parseTsAsUTC(r[dateCol]);
-    if(isNaN(t)) continue;
-    if(isDroppedMondayFirstHourUTC(t)) continue;
-
-    const stake_mult = stakeMultiplierForTsUTC(t);
-
-    let pnl_total_usd = 0;
-    let trades = 0;
-
-    for(const c of coins){
-      const puRaw = toNumber(r['prob_up_'+c]);
-      const pdRaw = toNumber(r['prob_down_'+c]);
-      const probUp   = (puRaw === null ? -Infinity : puRaw);
-      const probDown = (pdRaw === null ? -Infinity : pdRaw);
-
-      const actRaw = toNumber(r['actual_'+c]);
-      const actual = (actRaw === null ? 0 : (actRaw|0));
-
-      let signal;
-      const th = thresholdForCoinAtTsUTC(c, t);
-      if((('prob_up_'+c) in r || ('prob_down_'+c) in r) && (th !== undefined)){
-        signal = computeSignal(probUp, probDown, th);
-      } else {
-        const sigRaw = toNumber(r['signal_'+c]);
-        signal = (sigRaw === null ? 0 : (sigRaw|0));
-        if(signal !== -1 && signal !== 0 && signal !== 1) signal = 0;
-      }
-
-      const hit = (signal !== 0) && (signal === actual);
-
-      const profitF = profitFactorForCoinAtTsUTC(c, t);
-      const win_amt  = UNIT * stake_mult * profitF;
-      const lose_amt = -UNIT * stake_mult;
-
-      const pnl_usd = (signal === 0) ? 0 : (hit ? win_amt : lose_amt);
-
-      pnl_total_usd += pnl_usd;
-      if(signal !== 0) trades += 1;
+async function loadLive(){
+  try{
+    const r = await fetch(CSV_NEW);
+    if(!r.ok) return;
+    const rows = parseCSV(await r.text());
+    const byDay = {};
+    for(const x of rows){
+      if(Number(x.paper)) continue;
+      const ymd = String(x.timestamp).slice(0,10);
+      if(ymd < NEW_ERA_START) continue;
+      const o = byDay[ymd] || {usd:0, trades:0};
+      o.usd += Number(x.pnl)||0;
+      o.trades += 1;
+      byDay[ymd] = o;
     }
-
-    const u_total = pnl_total_usd / UNIT;
-
-    const hourISO = new Date(Date.UTC(
-      t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), t.getUTCHours()
-    )).toISOString();
-
-    tmp.push({ tsISO: t.toISOString(), hourISO, u_total, trades });
-  }
-
-  // cutoff común
-  const lastByCoin = {};
-  for(const c of coins) lastByCoin[c] = null;
-
-  for(const r of rawRows){
-    const t = parseTsAsUTC(r[dateCol]);
-    if(isNaN(t)) continue;
-    if(isDroppedMondayFirstHourUTC(t)) continue;
-
-    for(const c of coins){
-      const pu = toNumber(r['prob_up_'+c]);
-      const pd = toNumber(r['prob_down_'+c]);
-      const hasProbCols = (('prob_up_'+c) in r) || (('prob_down_'+c) in r);
-
-      let real = false;
-      if(hasProbCols){
-        const puF = (pu === null ? -Infinity : pu);
-        const pdF = (pd === null ? -Infinity : pd);
-        real = Number.isFinite(puF) || Number.isFinite(pdF);
-      } else {
-        const act = toNumber(r['actual_'+c]) ?? 0;
-        const sig = toNumber(r['signal_'+c]) ?? 0;
-        real = (act !== 0) || (sig !== 0);
-      }
-
-      if(real){
-        if(lastByCoin[c] === null || t > lastByCoin[c]) lastByCoin[c] = t;
-      }
+    let bank = BANK0_LIVE;
+    for(const k of Object.keys(byDay).sort()){
+      bank += byDay[k].usd;
+      LIVE_DAYS[k] = {u: byDay[k].usd/UREF, usd: byDay[k].usd,
+                      trades: byDay[k].trades, bank};
     }
-  }
-
-  const lastVals = Object.values(lastByCoin).filter(d => d instanceof Date && !isNaN(d));
-  const cutoffCommon = lastVals.length ? new Date(Math.min(...lastVals.map(d=>d.getTime()))) : null;
-
-  const filtered = cutoffCommon
-    ? tmp.filter(o => new Date(o.tsISO).getTime() <= cutoffCommon.getTime())
-    : tmp;
-
-  filtered.sort((a,b)=> (a.tsISO < b.tsISO ? -1 : a.tsISO > b.tsISO ? 1 : 0));
-  return filtered;
+  }catch(e){ /* sin datos vivos aun */ }
 }
 
-function summarizeByDay_Hours(rows){
-  const byDay=new Map();
-  for(const r of rows){
-    const d=new Date(r.tsISO);
-    const key=new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString().slice(0,10);
-    const o=byDay.get(key)||{u:0,hours:0,trades:0};
-    o.u += r.u_total;
-    o.hours += 1;
-    o.trades += r.trades;
-    byDay.set(key,o);
-  }
-  return byDay;
+function dayRec(ymd){
+  return LIVE_DAYS[ymd] || HIST[ymd] || null;
 }
 
-function renderCalendar(){
-  if(!CAL_CURRENT){
-    const grid=$$('#calGrid');
-    if(grid) grid.innerHTML='';
-    updateClientPayoutBadge(0);
-    return 0;
+function render(){
+  const y = CAL.getUTCFullYear(), m = CAL.getUTCMonth();
+  $$('#calTitle').textContent = new Intl.DateTimeFormat('es-MX',
+    {month:'long', year:'numeric', timeZone:'UTC'}).format(CAL);
+  const first = new Date(Date.UTC(y, m, 1));
+  const dow = first.getUTCDay();
+  const start = new Date(Date.UTC(y, m, 1 + (dow===0 ? -6 : 1-dow)));
+  const grid = $$('#calGrid');
+  grid.innerHTML = '<div class="cal-dow">Lun</div><div class="cal-dow">Mar</div>'+
+    '<div class="cal-dow">Mié</div><div class="cal-dow">Jue</div><div class="cal-dow">Vie</div>'+
+    '<div class="cal-dow">Sáb</div><div class="cal-dow">Dom</div>';
+  const dim = new Date(Date.UTC(y, m+1, 0)).getUTCDate();
+  let maxAbs = 0;
+  for(let d=1; d<=dim; d++){
+    const rec = dayRec(new Date(Date.UTC(y,m,d)).toISOString().slice(0,10));
+    if(rec) maxAbs = Math.max(maxAbs, Math.abs(rec.u));
   }
-
-  const year=CAL_CURRENT.getUTCFullYear(), month=CAL_CURRENT.getUTCMonth();
-  const first=new Date(Date.UTC(year,month,1));
-  const dow=first.getUTCDay();
-  const offset=(dow===0?-6:1-dow);
-  const start=new Date(Date.UTC(year,month,1+offset));
-
-  const byDay = summarizeByDay_Hours(ROWS);
-
-  const titleEl = $$('#calTitle');
-  if(titleEl){
-    titleEl.textContent=new Intl.DateTimeFormat('es-MX',{month:'long',year:'numeric',timeZone:'UTC'}).format(first);
-  }
-
-  let monthUnits=0, monthCount=0;
-  const rightLabel = (MODE === 'trade') ? 'Trades' : 'Horas';
-
-  const grid=$$('#calGrid');
-  if(!grid){
-    updateClientPayoutBadge(0);
-    return 0;
-  }
-
-  grid.innerHTML=`<div class="cal-dow">Lun</div><div class="cal-dow">Mar</div><div class="cal-dow">Mié</div><div class="cal-dow">Jue</div><div class="cal-dow">Vie</div><div class="cal-dow">Sáb</div><div class="cal-dow">Dom</div>`;
-
-  const daysInMonth=new Date(Date.UTC(year,month+1,0)).getUTCDate();
-  const vals=[];
-  for(let d=1; d<=daysInMonth; d++){
-    const key=new Date(Date.UTC(year,month,d)).toISOString().slice(0,10);
-    const rec=byDay.get(key);
-    vals.push(Math.abs(rec?.u||0));
-  }
-  const maxAbs=Math.max(0,...vals);
-
-  for(let i=0;i<42;i++){
-    const d=new Date(Date.UTC(start.getUTCFullYear(),start.getUTCMonth(),start.getUTCDate()+i));
-    const key=d.toISOString().slice(0,10);
-    const inMonth=d.getUTCMonth()===month;
-
-    const rec=byDay.get(key) || {u:0,hours:0,trades:0};
-
-    if(inMonth){
-      monthUnits += rec.u;
-      monthCount += (MODE === 'trade') ? rec.trades : rec.hours;
-    }
-
-    const u=rec.u;
-    const alpha=maxAbs>0? (0.18+0.72*Math.min(1,Math.abs(u)/maxAbs)) : 0;
-
-    let bg, border;
-    if(u>0){ bg=`rgba(21,128,61,${alpha})`; border='rgba(21,128,61,.78)'; }
-    else if(u<0){ bg=`rgba(185,28,28,${alpha})`; border='rgba(185,28,28,.78)'; }
-    else { bg='#f3f4f6'; border='var(--border)'; }
-
-    const div=document.createElement('div');
-    div.className='day'+(inMonth?'':' other');
-    div.style.background = u===0 ? bg : `linear-gradient(180deg, ${bg}, rgba(0,0,0,.08))`;
-    div.style.borderColor = border;
-    div.innerHTML = `<div class="n">${d.getUTCDate()}</div><div class="u">${u>0? '+'+fmtNum(u): (u<0? fmtNum(u): '—')} u</div>`;
+  let mu = 0, bankEnd = null, isLive = false;
+  for(let i=0; i<42; i++){
+    const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()+i));
+    const key = d.toISOString().slice(0,10);
+    const inM = d.getUTCMonth() === m;
+    const rec = dayRec(key);
+    const u = rec ? rec.u : 0;
+    if(inM && rec){ mu += u; bankEnd = rec.bank; if(LIVE_DAYS[key]) isLive = true; }
+    const a = maxAbs > 0 ? (0.18 + 0.72*Math.min(1, Math.abs(u)/maxAbs)) : 0;
+    let bg = '#1a2234', bd = 'var(--border)';
+    if(u > 0){ bg = `rgba(31,185,112,${a})`; bd = 'rgba(31,185,112,.55)'; }
+    else if(u < 0){ bg = `rgba(224,82,107,${a})`; bd = 'rgba(224,82,107,.55)'; }
+    const div = document.createElement('div');
+    div.className = 'day' + (inM ? '' : ' other');
+    div.style.background = bg;
+    div.style.borderColor = bd;
+    div.innerHTML = `<div class="n">${d.getUTCDate()}</div>` +
+      `<div class="u">${rec ? (u>0?'+':'')+fmt(u)+' u' : '—'}</div>` +
+      (rec ? `<div class="b">$${fmt(Math.round(rec.bank))}</div>` : '');
     grid.appendChild(div);
   }
-
-  const badge=$$('#monthUnits');
-  if(badge){
-    badge.textContent = `Mes: ${monthUnits>0? '+'+fmtNum(monthUnits): fmtNum(monthUnits)} u`;
-    badge.classList.toggle('positive', monthUnits>0);
-    badge.classList.toggle('negative', monthUnits<0);
-  }
-
-  const mt=$$('#monthTrades');
-  if(mt){
-    mt.textContent = `${rightLabel}: ${new Intl.NumberFormat('es-MX').format(monthCount)}`;
-  }
-
-  updateClientPayoutBadge(monthUnits);
-  return monthUnits;
+  const mb = $$('#monthUnits');
+  mb.textContent = `Mes: ${mu>0?'+':''}${fmt(mu)} u`;
+  mb.classList.toggle('positive', mu>0);
+  mb.classList.toggle('negative', mu<0);
+  $$('#bankBadge').textContent = bankEnd ? `Banco: $${fmt(Math.round(bankEnd))}` : 'Banco: —';
+  const pay = mu * MXN_PER_UNIT;
+  const pb = $$('#clientPayout');
+  pb.textContent = `Payout mes: ${pay>0?'+':''}${fmt(Math.round(pay))} MXN`;
+  pb.classList.toggle('positive', pay>0);
+  pb.classList.toggle('negative', pay<0);
+  $$('#eraBadge').textContent = isLive ? 'VIVO' : 'histórico (walk-forward)';
 }
 
-async function loadCSV(){
-  return new Promise((res,rej)=>{
-    Papa.parse(CSV_PATH,{
-      header:true, dynamicTyping:true, download:true, skipEmptyLines:true,
-      complete:(o)=>res(o.data), error:(e)=>rej(e)
-    });
-  });
-}
-
-(async()=>{
-  try{
-    RAW = await loadCSV();
-    if(!RAW || !RAW.length) throw new Error('CSV vacío');
-
-    const headers=Object.keys(RAW[0]);
-    DATE_COL = detectDateCol(headers);
-
-    ROWS = buildRowsLikePython(RAW, DATE_COL);
-
-    if(!ROWS.length) throw new Error('Sin filas útiles tras drop/cutoff');
-
-    const dLast = new Date(ROWS[ROWS.length - 1].tsISO);
-    CAL_CURRENT = new Date(Date.UTC(dLast.getUTCFullYear(), dLast.getUTCMonth(), 1));
-
-    renderCalendar();
-  }catch(e){
-    console.error(e);
-  }
-})();
-
-$$('#prevMonth')?.addEventListener('click', ()=>{
-  if(!CAL_CURRENT) return;
-  CAL_CURRENT = new Date(Date.UTC(CAL_CURRENT.getUTCFullYear(), CAL_CURRENT.getUTCMonth()-1, 1));
-  renderCalendar();
-});
-$$('#nextMonth')?.addEventListener('click', ()=>{
-  if(!CAL_CURRENT) return;
-  CAL_CURRENT = new Date(Date.UTC(CAL_CURRENT.getUTCFullYear(), CAL_CURRENT.getUTCMonth()+1, 1));
-  renderCalendar();
-});
-
-$$('#bankInput')?.addEventListener('input', ()=> renderCalendar());
-
-document.querySelectorAll('#modeSeg button').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    MODE = btn.dataset.mode;
-    renderCalendar();
-  });
-});
-
-// --- Toggle Thursday OFF ---
-(function initThuToggle(){
-  const el = $$('#thuOffToggle');
-  if(!el) return;
-
-  const saved = localStorage.getItem('thu_off_enabled');
-  THU_OFF_ENABLED = (saved === null) ? true : (saved === '1');
-
-  el.checked = THU_OFF_ENABLED;
-
-  el.addEventListener('change', ()=>{
-    THU_OFF_ENABLED = !!el.checked;
-    localStorage.setItem('thu_off_enabled', THU_OFF_ENABLED ? '1' : '0');
-
-    if(RAW?.length && DATE_COL){
-      ROWS = buildRowsLikePython(RAW, DATE_COL);
-      renderCalendar();
-    }
-  });
+(async () => {
+  await loadLive();
+  const keys = [...Object.keys(HIST), ...Object.keys(LIVE_DAYS)].sort();
+  const last = keys[keys.length-1];
+  CAL = new Date(Date.UTC(Number(last.slice(0,4)), Number(last.slice(5,7))-1, 1));
+  render();
+  $$('#prevMonth').onclick = () => { CAL = new Date(Date.UTC(CAL.getUTCFullYear(), CAL.getUTCMonth()-1, 1)); render(); };
+  $$('#nextMonth').onclick = () => { CAL = new Date(Date.UTC(CAL.getUTCFullYear(), CAL.getUTCMonth()+1, 1)); render(); };
 })();
 </script>
-
 </body>
 </html>
