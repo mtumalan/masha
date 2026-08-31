@@ -21,7 +21,8 @@ const rowsAll = [...buildOldRows(parseCSV('data/results.csv')),
                  ...buildMetaRows(parseCSV('data/meta_results.csv'))]
   .sort((a,b)=>a.tsISO<b.tsISO?-1:1)
   .filter(r => r.tsISO.slice(0,10) <= CUTOFF);
-// agregar por dia (sin UNIT_ADJUSTMENTS: los viejos ya estan horneados o son cero)
+// agregar por dia SIN aplicar UNIT_ADJUSTMENTS: el congelado va crudo y los
+// ajustes viven en el diccionario de index.html, aplicados en render.
 const byDay = new Map();
 for(const r of rowsAll){
   const key = r.tsISO.slice(0,10);

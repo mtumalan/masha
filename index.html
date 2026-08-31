@@ -121,8 +121,13 @@ const CLIENT_MXN_PER_UNIT_PER_10K = 70;
 // Ajustes manuales de unidades por día (UTC, 'YYYY-MM-DD').
 // Positivo = suma unidades, negativo = resta unidades.
 // Se aplican sobre el total del día (y por lo tanto sobre el total del mes).
-// (los ajustes previos al 2026-08-31 ya estan horneados en HISTORICAL_DAILY)
-const UNIT_ADJUSTMENTS = {};
+// Ajustes manuales de unidades por dia (UTC). Se aplican EN RENDER sobre el
+// congelado (que va siempre crudo) — nunca se hornean, para que los
+// re-congelados con tools/freeze_history.js no los pierdan ni dupliquen.
+const UNIT_ADJUSTMENTS = {
+  '2026-08-22': -1.0,
+  '2026-08-23': -1.78,
+};
 
 const $$ = (s, r=document) => r.querySelector(s);
 const fmtNum = (n) => new Intl.NumberFormat('es-MX', {maximumFractionDigits:2}).format(n);
