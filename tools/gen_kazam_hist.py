@@ -9,7 +9,8 @@ Reglas (verificadas 208/208 contra el embed original, 2026-09-01):
   a la medianoche que cierra el dia; unit = min(1250, 0.02925 * banco
   LIQUIDADO a esa medianoche) — la stake que el sistema usaria al cierre.
 
-Uso: python3 tools/gen_kazam_hist.py  (imprime el JSON del HIST)
+Uso: python3 tools/gen_kazam_hist.py [ruta_csv]   (imprime el JSON del HIST)
+     por defecto data/twin_2026.csv
 """
 import csv as _csv
 import json
@@ -21,7 +22,8 @@ RATIO, CAP, BANK0 = 0.02925, 1250.0, 10000.0
 ROOT = Path(__file__).resolve().parent.parent
 
 rows = []
-with open(ROOT / "data" / "twin_2026.csv") as fh:
+SRC = sys.argv[1] if len(sys.argv) > 1 else "data/twin_2026.csv"
+with open(ROOT / SRC) as fh:
     for r in _csv.DictReader(fh):
         ts = datetime.fromisoformat(r["timestamp"]).astimezone(timezone.utc)
         rows.append((ts, float(r["pnl_total"]) / 130.0, int(r["nb"])))
