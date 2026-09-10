@@ -33,6 +33,11 @@ La calidad del llenado del historico depende del tamano de la orden, asi que se 
 que corresponde a un BANCO DE REFERENCIA fijo (--banco, 10.000 USD por defecto), interpolando en la
 malla de tamanos que trae cada pierna. Con un banco mayor las ordenes son mas grandes y llenan peor.
 
+Escribe DOS ficheros:
+    data/15_results.csv   la vista 15.html: historico OOS (con --historico) + produccion
+    data/masha_live.csv   SOLO produccion, para que index.html sume las unidades nuevas sin
+                          tocar su pasado congelado
+
     ../venv/bin/python tools/gen_15.py                 # solo produccion
     ../venv/bin/python tools/gen_15.py --historico     # + la cadena ciega OOS
 """
@@ -46,6 +51,10 @@ import pandas as pd
 R = Path(__file__).resolve().parents[1]
 FUENTE = R.parent / "alquimiaBTC" / "orquestador_masha" / "state" / "results.csv"
 SALIDA = R / "data" / "15_results.csv"
+# index.html sigue mandando su propio pasado (HISTORICAL_DAILY + bag_results.csv de anette) y solo
+# necesita lo que el orquestador opera DE VERDAD desde el relevo. Va en su propio fichero, sin
+# historico, para que no haya forma de que la vista vieja se coma la cadena ciega por accidente.
+SALIDA_LIVE = R / "data" / "masha_live.csv"
 COLS = ["timestamp", "model", "symbol", "pred", "win", "stake", "pnl", "units", "risked", "paper"]
 ANUAL = R.parent / "alquimiaBTC" / "orquestador_masha" / "studies" / "anual"
 PATAS = {"q_BTC": ("quarterhour", "BTCUSDT"), "q_ETH": ("quarterhour", "ETHUSDT"),
@@ -142,6 +151,15 @@ def main() -> int:
             w.writerow([x.timestamp.strftime("%Y-%m-%dT%H:%M:%S+00:00"), x.model, x.symbol,
                         int(x.pred), int(x.win), f"{float(x.stake):.2f}", f"{float(x.pnl):.2f}",
                         f"{float(x.units):.6f}", f"{float(x.risked):.6f}", 0])
+
+    with open(SALIDA_LIVE, "w", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(COLS)
+        for x in r.itertuples():
+            w.writerow([x.timestamp.strftime("%Y-%m-%dT%H:%M:%S+00:00"), x.model, x.symbol,
+                        int(x.pred), int(x.win), f"{float(x.stake):.2f}", f"{float(x.pnl):.2f}",
+                        f"{float(x.units):.6f}", f"{float(x.risked):.6f}", 0])
+    print(f"{SALIDA_LIVE.name}: {len(r)} filas de produccion (sin historico)")
 
     con = r[stake > 0]
     print(f"{SALIDA.name}: {len(r)} apuestas ({len(con)} con fill), "
