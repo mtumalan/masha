@@ -24,7 +24,17 @@ horario, porque eso es exactamente lo que arriesga.
 Las apuestas SIN FILL (stake 0) entran con units 0 y arriesgado 0: se decidieron y no se llego a
 operar, asi que ni suman ni restan ni cuentan como exposicion.
 
-    ../venv/bin/python tools/gen_15.py
+EL HISTORICO viene de la CADENA CIEGA OOS de los cuatro modelos (orquestador_masha/studies/anual):
+2025-09-13 -> 2026-08-30, cada bag gobernando SOLO el tramo posterior a su corte, con el libro real
+de Polymarket y la comision vigente. Es el rendimiento del modelo sobre datos que no vio; las filas
+de produccion se anaden despues, en el mismo formato y sin distinguirse (operador 2026-09-09).
+
+La calidad del llenado del historico depende del tamano de la orden, asi que se evalua a la unidad
+que corresponde a un BANCO DE REFERENCIA fijo (--banco, 10.000 USD por defecto), interpolando en la
+malla de tamanos que trae cada pierna. Con un banco mayor las ordenes son mas grandes y llenan peor.
+
+    ../venv/bin/python tools/gen_15.py                 # solo produccion
+    ../venv/bin/python tools/gen_15.py --historico     # + la cadena ciega OOS
 """
 from __future__ import annotations
 
@@ -37,6 +47,42 @@ R = Path(__file__).resolve().parents[1]
 FUENTE = R.parent / "alquimiaBTC" / "orquestador_masha" / "state" / "results.csv"
 SALIDA = R / "data" / "15_results.csv"
 COLS = ["timestamp", "model", "symbol", "pred", "win", "stake", "pnl", "units", "risked", "paper"]
+ANUAL = R.parent / "alquimiaBTC" / "orquestador_masha" / "studies" / "anual"
+PATAS = {"q_BTC": ("quarterhour", "BTCUSDT"), "q_ETH": ("quarterhour", "ETHUSDT"),
+         "h_BTC": ("hourly", "BTCUSDT"), "h_ETH": ("hourly", "ETHUSDT")}
+MALLA = [10, 25, 50, 100, 200, 400, 800, 1500, 3000, 5000]
+
+
+def por_dolar(fila, u):
+    """PnL por dolar de unidad a tamano `u`, interpolando en la malla de la pierna."""
+    import bisect
+    u = min(max(u, MALLA[0]), MALLA[-1])
+    j = min(bisect.bisect_right(MALLA, u) - 1, len(MALLA) - 2)
+    w = (u - MALLA[j]) / (MALLA[j + 1] - MALLA[j])
+    return fila[f"g{MALLA[j]}"] * (1 - w) + fila[f"g{MALLA[j+1]}"] * w
+
+
+def historico(P: dict, banco: float) -> list[list]:
+    """La cadena ciega OOS de las cuatro piernas, en el mismo formato que produccion."""
+    import sys
+    sys.path.insert(0, str(R.parent / "alquimiaBTC" / "orquestador_masha"))
+    import config as MC
+    filas = []
+    for pata, (mod, sym) in PATAS.items():
+        f = ANUAL / f"{pata}.csv"
+        if not f.exists():
+            print(f"  [GUARDA] falta {f.name}: el historico quedaria incompleto"); return []
+        d = pd.read_csv(f)
+        d["cierre"] = pd.to_datetime(d.cierre, utc=True, format="ISO8601")
+        u = MC.unit_for(banco, banco, mod, sym)
+        peso = P[(mod, sym)]
+        for x in d.itertuples():
+            g = por_dolar({c: getattr(x, c) for c in d.columns if c.startswith("g")}, u)
+            filas.append([x.cierre.strftime("%Y-%m-%dT%H:%M:%S+00:00"), mod, sym,
+                          1 if x.ac else -1, 1 if g > 0 else 0, f"{u:.2f}", f"{g*u:.2f}",
+                          f"{g*peso:.6f}", f"{peso if g != 0 else 0.0:.6f}", 0])
+        print(f"  {pata}: {len(d):,} apuestas OOS a unidad ${u:,.2f} (peso {peso:.4f})")
+    return filas
 
 
 def pesos() -> dict[tuple[str, str], float]:
@@ -54,6 +100,11 @@ def pesos() -> dict[tuple[str, str], float]:
 
 
 def main() -> int:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--historico", action="store_true", help="anade la cadena ciega OOS")
+    ap.add_argument("--banco", type=float, default=10_000.0, help="banco de referencia del OOS")
+    a = ap.parse_args()
     if not FUENTE.exists():
         print(f"[GUARDA] no existe {FUENTE}"); return 1
     r = pd.read_csv(FUENTE)
@@ -85,6 +136,8 @@ def main() -> int:
     with open(SALIDA, "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(COLS)
+        for fila in (historico(P, a.banco) if a.historico else []):
+            w.writerow(fila)
         for x in r.itertuples():
             w.writerow([x.timestamp.strftime("%Y-%m-%dT%H:%M:%S+00:00"), x.model, x.symbol,
                         int(x.pred), int(x.win), f"{float(x.stake):.2f}", f"{float(x.pnl):.2f}",

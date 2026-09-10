@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>M.A.S.H.A. · 15</title>
+  <title>M.A.S.H.A. 15</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <style>
     :root{
@@ -16,7 +16,6 @@
     .wrap{max-width:1000px;margin:32px auto;padding:0 16px}
     header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
     h1{font-size:18px;margin:0}
-    h1 small{color:var(--muted);font-weight:400;font-size:12px;margin-left:6px}
     .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px}
 
     .cal-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px}
@@ -27,7 +26,10 @@
     .badge.negative{border-color:var(--bad);color:var(--bad)}
     button{background:#0d111a;color:var(--ink);border:1px solid #2a3244;border-radius:10px;padding:8px 10px;cursor:pointer}
     button:hover{background:#232b3b}
-    button:focus-visible{outline:2px solid var(--good);outline-offset:2px}
+
+    .seg{display:inline-flex;border:1px solid #2a3244;border-radius:10px;overflow:hidden}
+    .seg button{padding:6px 10px;border:0;background:#0d111a}
+    .seg button.active{background:#1a2234;border-left:1px solid #2a3244;border-right:1px solid #2a3244}
 
     .cal-scroll{overflow:auto; -webkit-overflow-scrolling:touch}
     .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));gap:8px;min-width:630px}
@@ -36,32 +38,19 @@
     .day{background:#1a2234;border:1px solid var(--border);border-radius:12px;padding:10px;display:flex;flex-direction:column;aspect-ratio:1/1}
     .day.other{opacity:.35}
     .day .n{font-size:12px;color:var(--muted)}
-    .day .t{font-size:11px;color:var(--muted);margin-top:2px}
     .day .u{margin-top:auto;font-weight:700}
-    .day .u.positive{color:var(--good)} .day .u.negative{color:var(--bad)}
-
-    .legs{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:12px}
-    .leg{background:#0d111a;border:1px solid #2a3244;border-radius:12px;padding:10px}
-    .leg .name{font-size:12px;color:var(--muted)}
-    .leg .val{font-size:18px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
-    .leg .sub{font-size:11px;color:var(--muted);margin-top:2px}
-
-    .calc{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .calc input{background:#0d111a;color:var(--ink);border:1px solid #2a3244;border-radius:10px;padding:8px 10px;max-width:180px;font-variant-numeric:tabular-nums}
-    .calc input:focus-visible{outline:2px solid var(--good);outline-offset:1px}
-    .note{color:var(--muted);font-size:12px;margin-top:10px;line-height:1.5}
-    .note b{color:var(--ink);font-weight:600}
-    .err{color:var(--bad);font-size:12px;margin-top:8px}
 
     @media (max-width: 900px){
       .wrap{padding:0 12px}
       .cal-grid{grid-template-columns:repeat(7,minmax(70px,1fr));gap:6px;min-width:490px}
+      .day{aspect-ratio:1/1;}
     }
     @media (max-width: 600px){
       .cal-top{flex-direction:column;align-items:flex-start}
       .cal-grid{grid-template-columns:repeat(7,minmax(56px,1fr));gap:5px;min-width:392px}
-      .day{padding:8px}
-      .day .n{font-size:11px} .day .t{display:none} .day .u{font-size:12px}
+      .day{padding:8px;}
+      .day .n{font-size:11px}
+      .day .u{font-size:12px}
       h1{font-size:16px}
       .cal-title h2{font-size:14px}
       .badge{font-size:11px;padding:5px 8px}
@@ -73,14 +62,13 @@
 <body>
   <div class="wrap">
     <header>
-      <h1>M.A.S.H.A. · 15 <small>quarterhour + hourly</small></h1>
+      <h1>M.A.S.H.A. 15</h1>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span id="monthUnits" class="badge">Mes: — u</span>
         <span id="monthTrades" class="badge">—</span>
-        <div class="seg" id="modelSeg">
-          <button data-model="all" class="active">Todo</button>
-          <button data-model="quarterhour">15 min</button>
-          <button data-model="hourly">1 hora</button>
+        <div class="seg" id="modeSeg">
+          <button data-mode="trade" class="active">Por trade</button>
+          <button data-mode="hour">Por hora</button>
         </div>
       </div>
     </header>
@@ -88,240 +76,252 @@
     <section class="panel">
       <div class="cal-top">
         <div class="cal-title">
-          <button id="prevMonth" aria-label="Mes anterior">◀</button>
+          <button id="prevMonth">◀</button>
           <h2 id="calTitle">—</h2>
-          <button id="nextMonth" aria-label="Mes siguiente">▶</button>
+          <button id="nextMonth">▶</button>
         </div>
-        <span id="totalUnits" class="badge">Total: — u</span>
       </div>
-
       <div class="cal-scroll"><div class="cal-grid" id="calGrid">
-        <div class="cal-dow">Lun</div><div class="cal-dow">Mar</div><div class="cal-dow">Mié</div>
-        <div class="cal-dow">Jue</div><div class="cal-dow">Vie</div><div class="cal-dow">Sáb</div>
+        <div class="cal-dow">Lun</div>
+        <div class="cal-dow">Mar</div>
+        <div class="cal-dow">Mié</div>
+        <div class="cal-dow">Jue</div>
+        <div class="cal-dow">Vie</div>
+        <div class="cal-dow">Sáb</div>
         <div class="cal-dow">Dom</div>
       </div></div>
-
-      <div class="legs" id="legs"></div>
-      <div id="err" class="err" hidden></div>
     </section>
 
-    <div class="panel" style="margin-top:8px">
-      <div class="calc">
-        <span class="badge">Bank (MXN)</span>
-        <input id="bankInput" type="number" inputmode="numeric" min="0" step="100" value="10000" />
-        <span id="clientPayout" class="badge">Payout mes: — MXN</span>
-        <span id="clientTotal" class="badge">Payout total: — MXN</span>
-      </div>
-      <div class="note">
-        <b>La unidad es fija, y cada pata vale una fracción de la más alta.</b> La referencia (1.00)
-        es la pata mayor —BTC de 1 hora— y las demás valen su proporción: BTC 15 min <b>0.72</b>,
-        ETH 1 hora <b>0.50</b>, ETH 15 min <b>0.18</b>. Una apuesta de ETH de 15 minutos arriesga
-        0.18 unidades y su resultado cuenta 0.18, porque eso es exactamente lo que pone.
-        <br>Esas proporciones <b>no cambian con el banco</b>: las cuatro patas escalan juntas, así
-        que el tamaño en dólares crece pero el reparto entre ellas es el mismo.
-        <br>El pago son <b>70 MXN por unidad por cada 10.000 MXN</b> invertidos.
-        <br>Las apuestas decididas que no llegaron a llenarse cuentan <b>cero</b>: ni suman, ni
-        restan, ni computan como riesgo.
-      </div>
+    <div class="panel" style="padding:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; width:100%; margin-top:8px;">
+      <span class="badge">Bank (MXN)</span>
+      <input id="bankInput" type="number" inputmode="numeric" min="0" step="100"
+            value="0"
+            style="background:#0d111a;color:var(--ink);border:1px solid #2a3244;border-radius:10px;padding:8px 10px;max-width:180px" />
+      <span id="clientPayout" class="badge">Payout mes: — MXN</span>
     </div>
   </div>
 
 <script>
 // ===== Config =====
-const _TS   = Date.now();
-const CSV   = `data/15_results.csv?_=${_TS}`;
-// MXN por unidad por cada 10k MXN invertidos. MISMO ratio que index.html.
+const _TS = Date.now();
+// Una fila por bet liquidado de los cuatro modelos (quarterhour y hourly, BTC y ETH):
+// timestamp,model,symbol,pred,win,stake,pnl,units,risked,paper. Lo escribe tools/gen_15.py.
+const CSV = `data/15_results.csv?_=${_TS}`;
+
+// MXN por unidad por cada 10k MXN invertidos
 const CLIENT_MXN_PER_UNIT_PER_10K = 70;
 
-// Peso de cada pata como fraccion de la unidad MAS ALTA. Sale de la politica de sizing
-// (orquestador_masha/config.py) y es FIJO: las cuatro patas escalan juntas con el banco, asi que
-// su proporcion no cambia. Los escribe tools/gen_15.py en la columna `risked` de cada fila; aqui
-// solo se usan para ordenar y etiquetar.
-const LEGS = [
-  {model:'hourly',      symbol:'BTCUSDT', name:'BTC 1 hora',  peso:1.0000},
-  {model:'quarterhour', symbol:'BTCUSDT', name:'BTC 15 min',  peso:0.7154},
-  {model:'hourly',      symbol:'ETHUSDT', name:'ETH 1 hora',  peso:0.5000},
-  {model:'quarterhour', symbol:'ETHUSDT', name:'ETH 15 min',  peso:0.1789},
-];
+// LA UNIDAD ES FIJA. La referencia (1.00) es la pata de mayor tamano y las demas valen su
+// proporcion; los pesos ya vienen aplicados en la columna `units`, tomados de la misma politica
+// de dimensionamiento del camino vivo. No dependen del banco: las cuatro patas escalan juntas.
 
-// ===== Utilidades =====
-const $$ = (s) => document.querySelector(s);
-const toNumber = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
-const ymdUTC = (d) => `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
-const fmtU   = (u) => (u > 0 ? '+' : '') + u.toFixed(2);
-const fmtMXN = (v) => new Intl.NumberFormat('es-MX', {maximumFractionDigits:0}).format(v);
+const $$ = (s, r=document) => r.querySelector(s);
+const fmtNum = (n) => new Intl.NumberFormat('es-MX', {maximumFractionDigits:2}).format(n);
 
-function parseTsAsUTC(v){
-  if (v instanceof Date) return v;
-  const s = String(v ?? '').trim();
-  return new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(s) ? s : s.replace(' ', 'T') + 'Z');
-}
+let ROWS = [];
+let CAL_CURRENT = null;
+let MODE = 'trade';
 
-// ===== Estado =====
-let ROWS = [];               // filas crudas ya normalizadas
-let MODEL = 'all';           // filtro de la segmentada
-let cursor = new Date();     // mes mostrado
+// ── Parsing helpers ───────────────────────────────────────────────────────────
 
-// ===== Agregacion =====
-function filtered(){
-  return MODEL === 'all' ? ROWS : ROWS.filter(r => r.model === MODEL);
-}
-
-function byDay(rows){
-  const m = new Map();
-  for (const r of rows){
-    const k = ymdUTC(r.t);
-    const o = m.get(k) || {u:0, risked:0, trades:0, sinFill:0};
-    o.u += r.units; o.risked += r.risked;
-    if (r.stake > 0) o.trades += 1; else o.sinFill += 1;
-    m.set(k, o);
+function toNumber(x){
+  if(x===null||x===undefined||x==='') return null;
+  if(typeof x === 'string'){
+    const t = x.trim().toLowerCase();
+    if(['nan','-inf','inf','infinity','-infinity'].includes(t)) return null;
   }
-  return m;
+  const n = Number(x);
+  return Number.isFinite(n) ? n : null;
 }
 
-// ===== Render =====
-function renderCal(){
-  const rows = filtered(), daily = byDay(rows);
-  const y = cursor.getUTCFullYear(), mo = cursor.getUTCMonth();
-  $$('#calTitle').textContent = new Date(Date.UTC(y, mo, 1))
-    .toLocaleDateString('es-MX', {month:'long', year:'numeric', timeZone:'UTC'});
+function parseTsAsUTC(x){
+  if(x == null) return new Date(NaN);
+  if(x instanceof Date) return x;
+  const s = String(x).trim();
+  if(/[zZ]|[+\-]\d{2}:?\d{2}$/.test(s)) return new Date(s);
+  return new Date(s.replace(' ','T') + 'Z');
+}
 
-  const grid = $$('#calGrid');
-  [...grid.querySelectorAll('.day')].forEach(el => el.remove());
+function ymdUTC(d){
+  return d.getUTCFullYear() + '-'
+    + String(d.getUTCMonth()+1).padStart(2,'0') + '-'
+    + String(d.getUTCDate()).padStart(2,'0');
+}
 
-  const first = new Date(Date.UTC(y, mo, 1));
-  const offset = (first.getUTCDay() + 6) % 7;            // lunes primero
-  const start = new Date(Date.UTC(y, mo, 1 - offset));
-
-  let mesU = 0, mesT = 0, mesR = 0;
-  for (let i = 0; i < 42; i++){
-    const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate() + i));
-    const k = ymdUTC(d), info = daily.get(k);
-    const el = document.createElement('div');
-    el.className = 'day' + (d.getUTCMonth() !== mo ? ' other' : '');
-    const u = info ? info.u : null;
-    if (info && d.getUTCMonth() === mo){ mesU += info.u; mesT += info.trades; mesR += info.risked; }
-    el.innerHTML =
-      `<div class="n">${d.getUTCDate()}</div>` +
-      (info ? `<div class="t">${info.trades} op${info.sinFill ? ` · ${info.sinFill} s/f` : ''}</div>` : '') +
-      `<div class="u ${u === null ? '' : (u >= 0 ? 'positive' : 'negative')}">${u === null ? '' : fmtU(u)}</div>`;
-    grid.appendChild(el);
+// Una fila por bet → agregado por hora, como el resto de la casa. Las apuestas sin fill
+// (stake 0) se decidieron pero no se llegaron a operar: ni suman, ni restan, ni cuentan.
+function buildRows(rawRows){
+  if(!rawRows?.length) return [];
+  const byHour = new Map();
+  for(const r of rawRows){
+    const t = parseTsAsUTC(r['timestamp']);
+    if(isNaN(t)) continue;
+    if(Number(r['paper'])) continue;
+    if((toNumber(r['stake']) ?? 0) <= 0) continue;
+    const hourISO = new Date(Date.UTC(
+      t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), t.getUTCHours()
+    )).toISOString();
+    const o = byHour.get(hourISO) || {u:0, trades:0};
+    o.u += toNumber(r['units']) ?? 0;
+    o.trades += 1;
+    byHour.set(hourISO, o);
   }
-
-  const bu = $$('#monthUnits');
-  bu.textContent = `Mes: ${fmtU(mesU)} u`;
-  bu.className = 'badge ' + (mesU >= 0 ? 'positive' : 'negative');
-  $$('#monthTrades').textContent = `${mesT} op · ${mesR.toFixed(2)} u arriesgadas`;
-
-  const totU = rows.reduce((a, r) => a + r.units, 0);
-  const totR = rows.reduce((a, r) => a + r.risked, 0);
-  const bt = $$('#totalUnits');
-  bt.textContent = `Total: ${fmtU(totU)} u sobre ${totR.toFixed(2)} arriesgadas`;
-  bt.className = 'badge ' + (totU >= 0 ? 'positive' : 'negative');
-
-  renderLegs();
-  renderPayout(mesU, totU);
+  return [...byHour.entries()]
+    .sort((a,b)=>a[0]<b[0]?-1:1)
+    .map(([hourISO,o]) => ({tsISO: hourISO, hourISO, u_total: o.u, trades: o.trades}));
 }
 
-function renderLegs(){
-  const cont = $$('#legs');
-  cont.innerHTML = '';
-  for (const leg of LEGS){
-    const rs = ROWS.filter(r => r.model === leg.model && r.symbol === leg.symbol);
-    const con = rs.filter(r => r.stake > 0);
-    const u = rs.reduce((a, r) => a + r.units, 0);
-    const rk = rs.reduce((a, r) => a + r.risked, 0);
-    const win = con.filter(r => r.units > 0).length;
-    const el = document.createElement('div');
-    el.className = 'leg';
-    el.innerHTML =
-      `<div class="name">${leg.name} <span style="opacity:.7">· unidad ${leg.peso.toFixed(2)}</span></div>` +
-      `<div class="val" style="color:${u >= 0 ? 'var(--good)' : 'var(--bad)'}">${fmtU(u)} u</div>` +
-      `<div class="sub">sobre ${rk.toFixed(2)} arriesgadas · ${con.length} op · ` +
-      `${con.length ? Math.round(100*win/con.length) : 0}% acierto` +
-      `${rs.length - con.length ? ` · ${rs.length - con.length} sin fill` : ''}</div>`;
-    cont.appendChild(el);
+// ── Aggregate by day ──────────────────────────────────────────────────────────
+
+function summarizeByDay_Hours(rows){
+  const byDay = new Map();
+  for(const r of rows){
+    const d = new Date(r.tsISO);
+    const key = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString().slice(0,10);
+    const o = byDay.get(key) || {u:0, hours:0, trades:0};
+    o.u      += r.u_total;
+    o.hours  += (r.trades > 0 ? 1 : 0);
+    o.trades += r.trades;
+    byDay.set(key, o);
   }
+  return byDay;
 }
+
+// ── Client payout ─────────────────────────────────────────────────────────────
 
 function getBankMXN(){
   const v = Number($$('#bankInput')?.value);
-  return Number.isFinite(v) && v > 0 ? v : 0;
+  return Number.isFinite(v) && v >= 0 ? v : 0;
 }
 
-function renderPayout(mesU, totU){
-  const factor = CLIENT_MXN_PER_UNIT_PER_10K * (getBankMXN() / 10_000);
-  for (const [sel, u, etiqueta] of [['#clientPayout', mesU, 'Payout mes'],
-                                    ['#clientTotal',  totU, 'Payout total']]){
-    const el = $$(sel);
-    const v = u * factor;
-    el.textContent = `${etiqueta}: ${v > 0 ? '+' : ''}${fmtMXN(v)} MXN`;
-    el.className = 'badge ' + (v >= 0 ? 'positive' : 'negative');
+function updateClientPayoutBadge(monthUnits){
+  const el = $$('#clientPayout');
+  if(!el) return;
+  const payout = monthUnits * CLIENT_MXN_PER_UNIT_PER_10K * (getBankMXN() / 10_000);
+  const sign = payout > 0 ? '+' : '';
+  el.textContent = `Payout mes: ${sign}${new Intl.NumberFormat('es-MX',{maximumFractionDigits:0}).format(payout)} MXN`;
+  el.classList.toggle('positive', payout > 0);
+  el.classList.toggle('negative', payout < 0);
+}
+
+// ── Render calendar ───────────────────────────────────────────────────────────
+
+function renderCalendar(){
+  if(!CAL_CURRENT){ updateClientPayoutBadge(0); return 0; }
+
+  const year  = CAL_CURRENT.getUTCFullYear();
+  const month = CAL_CURRENT.getUTCMonth();
+  const first = new Date(Date.UTC(year, month, 1));
+  const dow   = first.getUTCDay();
+  const start = new Date(Date.UTC(year, month, 1 + (dow === 0 ? -6 : 1 - dow)));
+
+  const byDay      = summarizeByDay_Hours(ROWS);
+  const rightLabel = MODE === 'trade' ? 'Trades' : 'Horas';
+
+  const titleEl = $$('#calTitle');
+  if(titleEl) titleEl.textContent = new Intl.DateTimeFormat('es-MX', {month:'long', year:'numeric', timeZone:'UTC'}).format(first);
+
+  const grid = $$('#calGrid');
+  if(!grid){ updateClientPayoutBadge(0); return 0; }
+  grid.innerHTML = '<div class="cal-dow">Lun</div><div class="cal-dow">Mar</div><div class="cal-dow">Mié</div><div class="cal-dow">Jue</div><div class="cal-dow">Vie</div><div class="cal-dow">Sáb</div><div class="cal-dow">Dom</div>';
+
+  const daysInMonth = new Date(Date.UTC(year, month+1, 0)).getUTCDate();
+  const vals = [];
+  for(let d=1; d<=daysInMonth; d++){
+    const key = new Date(Date.UTC(year, month, d)).toISOString().slice(0,10);
+    vals.push(Math.abs(byDay.get(key)?.u || 0));
   }
+  const maxAbs = Math.max(0, ...vals);
+
+  let monthUnits = 0, monthCount = 0;
+  for(let i=0; i<42; i++){
+    const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()+i));
+    const key = d.toISOString().slice(0,10);
+    const inMonth = d.getUTCMonth() === month;
+    const rec = byDay.get(key) || {u:0, hours:0, trades:0};
+
+    if(inMonth){
+      monthUnits += rec.u;
+      monthCount += (MODE === 'trade') ? rec.trades : rec.hours;
+    }
+
+    const u = rec.u;
+    const alpha = maxAbs > 0 ? (0.18 + 0.72 * Math.min(1, Math.abs(u) / maxAbs)) : 0;
+    let bg, border;
+    if(u > 0)     { bg=`rgba(31,185,112,${alpha})`;  border='rgba(31,185,112,.55)'; }
+    else if(u < 0){ bg=`rgba(224,82,107,${alpha})`;  border='rgba(224,82,107,.55)'; }
+    else          { bg='#1a2234';                     border='var(--border)'; }
+
+    const div = document.createElement('div');
+    div.className = 'day' + (inMonth ? '' : ' other');
+    div.style.background  = u === 0 ? bg : `linear-gradient(180deg, ${bg}, rgba(0,0,0,.08))`;
+    div.style.borderColor = border;
+    div.innerHTML = `<div class="n">${d.getUTCDate()}</div><div class="u">${u>0?'+'+fmtNum(u):u<0?fmtNum(u):'—'} u</div>`;
+    grid.appendChild(div);
+  }
+
+  const badge = $$('#monthUnits');
+  if(badge){
+    badge.textContent = `Mes: ${monthUnits>0?'+'+fmtNum(monthUnits):fmtNum(monthUnits)} u`;
+    badge.classList.toggle('positive', monthUnits > 0);
+    badge.classList.toggle('negative', monthUnits < 0);
+  }
+  const mt = $$('#monthTrades');
+  if(mt) mt.textContent = `${rightLabel}: ${new Intl.NumberFormat('es-MX').format(monthCount)}`;
+
+  updateClientPayoutBadge(monthUnits);
+  return monthUnits;
 }
 
-// ===== Carga =====
+// ── Load & boot ───────────────────────────────────────────────────────────────
+
 function fetchCSV(path){
-  return new Promise((resolve, reject) => {
+  return new Promise((res,rej) => {
     Papa.parse(path, {
-      download:true, header:true, skipEmptyLines:true, dynamicTyping:false,
-      complete: (res) => resolve(res.data || []),
-      error: reject,
+      header:true, dynamicTyping:true, download:true, skipEmptyLines:true,
+      complete:(o) => res(o.data), error:(e) => rej(e),
     });
   });
 }
 
-async function main(){
-  let raw = [];
-  try {
-    raw = await fetchCSV(CSV);
-  } catch (e) {
-    const el = $$('#err');
-    el.hidden = false;
-    el.textContent = `No se pudo leer ${CSV.split('?')[0]}. Genera el fichero con tools/gen_15.py.`;
-    return;
+(async () => {
+  try{
+    const raw = await fetchCSV(CSV).catch(() => []);
+    ROWS = buildRows(raw);
+    if(!ROWS.length){ renderCalendar(); return; }
+
+    const dLast = new Date(ROWS[ROWS.length-1].tsISO);
+    CAL_CURRENT = new Date(Date.UTC(dLast.getUTCFullYear(), dLast.getUTCMonth(), 1));
+    renderCalendar();
+  }catch(e){
+    console.error(e);
   }
-  ROWS = raw.map(r => {
-    const t = parseTsAsUTC(r['timestamp']);
-    if (isNaN(t)) return null;
-    if (Number(r['paper'])) return null;
-    return {
-      t, model: String(r['model'] || ''), symbol: String(r['symbol'] || ''),
-      stake: toNumber(r['stake']) ?? 0, units: toNumber(r['units']) ?? 0,
-      risked: toNumber(r['risked']) ?? 0,
-    };
-  }).filter(Boolean);
+})();
 
-  if (!ROWS.length){
-    const el = $$('#err');
-    el.hidden = false;
-    el.textContent = 'El fichero no tiene ninguna apuesta liquidada todavía.';
-    return;
-  }
+// ── Events ────────────────────────────────────────────────────────────────────
 
-  // se abre en el ultimo mes con datos, no en el mes del reloj del navegador
-  const ultima = ROWS.reduce((a, r) => r.t > a ? r.t : a, ROWS[0].t);
-  cursor = new Date(Date.UTC(ultima.getUTCFullYear(), ultima.getUTCMonth(), 1));
-  renderCal();
-}
-
-// ===== Eventos =====
-$$('#prevMonth').addEventListener('click', () => {
-  cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() - 1, 1)); renderCal();
+$$('#prevMonth')?.addEventListener('click', () => {
+  if(!CAL_CURRENT) return;
+  CAL_CURRENT = new Date(Date.UTC(CAL_CURRENT.getUTCFullYear(), CAL_CURRENT.getUTCMonth()-1, 1));
+  renderCalendar();
 });
-$$('#nextMonth').addEventListener('click', () => {
-  cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1)); renderCal();
+$$('#nextMonth')?.addEventListener('click', () => {
+  if(!CAL_CURRENT) return;
+  CAL_CURRENT = new Date(Date.UTC(CAL_CURRENT.getUTCFullYear(), CAL_CURRENT.getUTCMonth()+1, 1));
+  renderCalendar();
 });
-$$('#modelSeg').addEventListener('click', (e) => {
-  const b = e.target.closest('button[data-model]');
-  if (!b) return;
-  MODEL = b.dataset.model;
-  [...e.currentTarget.querySelectorAll('button')].forEach(x => x.classList.toggle('active', x === b));
-  renderCal();
-});
-$$('#bankInput').addEventListener('input', () => renderCal());
 
-main();
+$$('#bankInput')?.addEventListener('input', () => renderCalendar());
+
+document.querySelectorAll('#modeSeg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#modeSeg button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    MODE = btn.dataset.mode;
+    renderCalendar();
+  });
+});
 </script>
+
 </body>
 </html>
