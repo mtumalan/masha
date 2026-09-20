@@ -88,7 +88,6 @@
       <div class="tira" style="margin-bottom:10px">
         <span class="lab">Banda de inversión</span>
         <div class="seg" id="segBanda"></div>
-        <span id="bCuota" class="badge">—</span>
       </div>
       <div class="cifras" id="cifras"></div>
     </div>
@@ -154,10 +153,9 @@ function mesVisible(){
 
 // ── Cabecera de la banda ─────────────────────────────────────────────────────
 function pintarBanda(M){
-  const f = factor(), q = BANDA / META_D.banco;
-  const bruto = M.bruto * q, inv = bruto * META_D.reparto;
+  const f = factor();
+  const bruto = M.bruto * (BANDA / META_D.banco), inv = bruto * META_D.reparto;
 
-  $$('#bCuota').textContent = `${pctP(q,2)} del pastel`;
   $$('#cifras').innerHTML = [
     ['Capital', usd(BANDA), ''],
     ['Bruto del mes', usdS(bruto, 2), cls(bruto)],
