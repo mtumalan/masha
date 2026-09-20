@@ -55,8 +55,6 @@
     .cif .v{font-size:20px;font-weight:700;margin-top:3px}
     .pos{color:var(--good)} .neg{color:var(--bad)}
 
-    .aviso{border-left:3px solid var(--warn);padding:10px 12px;background:#0d111a;border-radius:0 12px 12px 0;color:var(--muted);font-size:12.5px}
-    .aviso b{color:var(--ink)}
 
     @media (max-width: 900px){
       .wrap{padding:0 12px}
@@ -85,18 +83,6 @@
         <span id="bMes" class="badge">Mes: —</span>
       </div>
     </header>
-
-    <div class="panel aviso">
-      <b>Simulado hasta <span id="fOos">—</span>, dinero real desde <span id="fVivo">—</span>.</b>
-      Lo simulado es la cadena <b>ciega</b> del OOS: cada bag gobierna sólo el tramo posterior a su
-      corte, con el libro y la cinta reales de Polymarket. Los días <b>● real</b> son operaciones de
-      producción, escaladas a la unidad del avispero con el recorte de capacidad que mide el propio
-      OOS —una orden 5 veces mayor no llena igual—.
-      <br><b>Los días <b>◌ libro flojo</b> (borde discontinuo) hay que leerlos con reserva:</b> en
-      esa ventana el libro de Polymarket sólo sirve la cotización de apertura, así que el simulador
-      llena el 100% de lo que pide cuando lo normal en 15 minutos es el 45–60%. Son optimistas en
-      el fill, no en el acierto.
-    </div>
 
     <div class="panel">
       <div class="tira" style="margin-bottom:10px">
@@ -299,8 +285,6 @@ function fetchCSV(path){
     $$('#nextMonth').addEventListener('click', () => {
       CAL = new Date(Date.UTC(CAL.getUTCFullYear(), CAL.getUTCMonth()+1, 1)); pintar(); });
 
-    $$('#fOos').textContent = meta.oos_hasta;
-    $$('#fVivo').textContent = meta.vivo_desde || '—';
     pintar();
   }catch(e){
     document.querySelector('.wrap').insertAdjacentHTML('beforeend',
