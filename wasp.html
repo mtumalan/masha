@@ -99,7 +99,6 @@
           <h2 id="calTitle">—</h2>
           <button id="nextMonth">▶</button>
         </div>
-        <span id="bDias" class="badge">—</span>
       </div>
       <div class="cal-scroll"><div class="cal-grid" id="calGrid"></div></div>
     </section>
@@ -137,7 +136,7 @@ const factor = () => (BANDA / META_D.banco) * META_D.reparto;
 function mesVisible(){
   const year = CAL.getUTCFullYear(), month = CAL.getUTCMonth();
   const diasMes = new Date(Date.UTC(year, month+1, 0)).getUTCDate();
-  let bruto = 0, acum = 0, pico = 0, dd = 0, dias = 0, vivos = 0, flojos = 0;
+  let bruto = 0, acum = 0, pico = 0, dd = 0;
   for(let d=1; d<=diasMes; d++){
     const rec = DIA.get(new Date(Date.UTC(year, month, d)).toISOString().slice(0,10));
     if(!rec) continue;
@@ -145,10 +144,9 @@ function mesVisible(){
     acum  += rec.total;
     pico   = Math.max(pico, acum);
     dd     = Math.max(dd, pico - acum);      // peor racha DENTRO del mes
-    if(rec.n_patas > 0){ dias++; if(rec.vivo) vivos++; if(rec.dudoso) flojos++; }
   }
   const ym = `${year}-${String(month+1).padStart(2,'0')}`;
-  return {bruto, dd, dias, ym, vivos, flojos};
+  return {bruto, dd, ym};
 }
 
 // ── Cabecera de la banda ─────────────────────────────────────────────────────
@@ -188,7 +186,6 @@ function renderCalendar(M){
   grid.innerHTML = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom']
     .map(n => `<div class="cal-dow">${n}</div>`).join('');
 
-  let conDatos = 0;
   for(let i=0; i<42; i++){
     const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()+i));
     const k = d.toISOString().slice(0,10);
@@ -198,7 +195,6 @@ function renderCalendar(M){
     const real = vivo && rec.vivo;                // ...y fue dinero de verdad
     const flojo = vivo && rec.dudoso;             // ...y el libro de ese dia solo daba la apertura
     const v = (rec?.total || 0) * f;
-    if(enMes && rec && rec.n_patas > 0) conDatos++;
 
     const a = maxAbs > 0 ? (0.18 + 0.72 * Math.min(1, Math.abs(rec?.total || 0) / maxAbs)) : 0;
     let bg, bd;
@@ -228,9 +224,6 @@ function renderCalendar(M){
   const b = $$('#bMes');
   b.textContent = `Mes: ${usdS(mes, 2)}`;
   b.classList.toggle('positive', mes > 0); b.classList.toggle('negative', mes < 0);
-  $$('#bDias').textContent = [`${conDatos} días`,
-    M.vivos ? `${M.vivos} de dinero real` : null,
-    M.flojos ? `${M.flojos} con libro flojo` : null].filter(Boolean).join(' · ');
 
   const ymActual = `${year}-${String(month+1).padStart(2,'0')}`;
   $$('#prevMonth').disabled = ymActual <= MESES[0];
