@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>M.A.S.H.A. · Avispero</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <style>
+    :root{
+      --bg:#0b0e14; --ink:#e6e8ef; --muted:#9aa3b2; --panel:#111521; --border:#1e2636;
+      --good:#1fb970; --bad:#e0526b; --warn:#e2b03c;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Helvetica,Arial,sans-serif}
+    .wrap{max-width:1000px;margin:32px auto;padding:0 16px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+    h1{font-size:18px;margin:0}
+    h1 small{color:var(--muted);font-weight:400;font-size:13px;margin-left:6px}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px}
+    .panel + .panel{margin-top:8px}
+
+    .cal-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px}
+    .cal-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .cal-title h2{margin:0;font-size:15px}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #2a3244;border-radius:999px;background:#0d111a;font-size:12px;color:var(--ink)}
+    .badge.positive{border-color:var(--good);color:var(--good)}
+    .badge.negative{border-color:var(--bad);color:var(--bad)}
+    button{background:#0d111a;color:var(--ink);border:1px solid #2a3244;border-radius:10px;padding:8px 10px;cursor:pointer}
+    button:hover{background:#232b3b}
+    button[disabled]{opacity:.35;cursor:default}
+    button[disabled]:hover{background:#0d111a}
+
+    .seg{display:inline-flex;border:1px solid #2a3244;border-radius:10px;overflow:hidden;flex-wrap:wrap}
+    .seg button{padding:6px 10px;border:0;background:#0d111a;border-radius:0}
+    .seg button.active{background:#1a2234;box-shadow:inset 0 0 0 1px #2a3244}
+
+    .cal-scroll{overflow:auto; -webkit-overflow-scrolling:touch}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));gap:8px;min-width:630px}
+    .cal-dow{font-size:11px;color:var(--muted);text-align:center;padding:6px 0;position:sticky;top:0;background:var(--panel);z-index:1}
+
+    .day{background:#1a2234;border:1px solid var(--border);border-radius:12px;padding:10px;display:flex;flex-direction:column;aspect-ratio:1/1}
+    .day.other{opacity:.35}
+    .day .n{font-size:12px;color:var(--muted)}
+    .day .u{margin-top:auto;font-weight:700}
+    .day .t{font-size:11px;color:var(--muted);margin-top:2px}
+
+    .tira{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .lab{font-size:12px;color:var(--muted)}
+    .cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+    .cif{background:#0d111a;border:1px solid #2a3244;border-radius:12px;padding:10px 12px}
+    .cif .k{font-size:11px;color:var(--muted)}
+    .cif .v{font-size:20px;font-weight:700;margin-top:3px}
+    .pos{color:var(--good)} .neg{color:var(--bad)}
+
+    table{border-collapse:collapse;width:100%;font-size:13px}
+    th,td{padding:7px 10px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+    th{font-size:11px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border)}
+    td{border-bottom:1px solid #161c2a}
+    tbody tr:last-child td{border-bottom:none}
+    th:first-child,td:first-child{text-align:left}
+    .aviso{border-left:3px solid var(--warn);padding:10px 12px;background:#0d111a;border-radius:0 12px 12px 0;color:var(--muted);font-size:12.5px}
+    .aviso b{color:var(--ink)}
+    ul.chico{margin:0;padding-left:18px;color:var(--muted);font-size:12.5px}
+    ul.chico li{margin-bottom:6px}
+    ul.chico b{color:var(--ink)}
+
+    @media (max-width: 900px){
+      .wrap{padding:0 12px}
+      .cal-grid{grid-template-columns:repeat(7,minmax(70px,1fr));gap:6px;min-width:490px}
+    }
+    @media (max-width: 600px){
+      .cal-top{flex-direction:column;align-items:flex-start}
+      .cal-grid{grid-template-columns:repeat(7,minmax(56px,1fr));gap:5px;min-width:392px}
+      .day{padding:8px}
+      .day .n{font-size:11px}
+      .day .u{font-size:12px}
+      .day .t{display:none}
+      h1{font-size:16px}
+      .cal-title h2{font-size:14px}
+      .badge{font-size:11px;padding:5px 8px}
+      button{padding:6px 8px}
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>M.A.S.H.A. <small>Avispero</small></h1>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span id="bMes" class="badge">Mes: —</span>
+        <span id="bTotal" class="badge">Periodo: —</span>
+      </div>
+    </header>
+
+    <div class="panel aviso">
+      <b>Simulación, no historial.</b> Es la cadena <b>ciega</b> del OOS: cada bag gobierna sólo el
+      tramo posterior a su corte, con el libro y la cinta reales de Polymarket y la capa de fill
+      encima. Nadie ganó este dinero: es lo que la estrategia habría hecho.
+    </div>
+
+    <div class="panel">
+      <div class="tira" style="margin-bottom:10px">
+        <span class="lab">Banda de inversión</span>
+        <div class="seg" id="segBanda"></div>
+        <span id="bCuota" class="badge">—</span>
+      </div>
+      <div class="cifras" id="cifras"></div>
+    </div>
+
+    <section class="panel">
+      <div class="cal-top">
+        <div class="cal-title">
+          <button id="prevMonth">◀</button>
+          <h2 id="calTitle">—</h2>
+          <button id="nextMonth">▶</button>
+        </div>
+        <span id="bDias" class="badge">—</span>
+      </div>
+      <div class="cal-scroll"><div class="cal-grid" id="calGrid"></div></div>
+    </section>
+
+    <div class="panel">
+      <div class="tira" style="justify-content:space-between;margin-bottom:8px">
+        <h2 style="margin:0;font-size:15px">Mes a mes</h2>
+        <span class="lab" id="labMes">lo que le toca a esta banda</span>
+      </div>
+      <div style="overflow:auto"><table id="tMeses"><thead></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="panel">
+      <div class="tira" style="justify-content:space-between;margin-bottom:8px">
+        <h2 style="margin:0;font-size:15px">Lo que esta banda pone en cada apuesta</h2>
+        <span class="lab" id="labEscala">—</span>
+      </div>
+      <div style="overflow:auto"><table id="tPatas"><thead></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="panel">
+      <h2 style="margin:0 0 8px;font-size:15px">Letra pequeña</h2>
+      <ul class="chico" id="letra"></ul>
+    </div>
+
+    <div class="lab" id="sello" style="margin:10px 2px 24px"></div>
+  </div>
+
+<script>
+// ===== Config =====
+const _TS   = Date.now();
+const CSV   = `data/wasp_daily.csv?_=${_TS}`;   // PnL BRUTO diario en USD, por pata
+const META  = `data/wasp_meta.json?_=${_TS}`;   // unidades, topes, bandas, reparto
+// Ambos los escribe alquimiaBTC/orquestador_masha/wasp_datos.py desde la cadena
+// ciega de studies/anual/limpio. Esta pagina no calcula estrategia: reparte.
+
+const $$ = (s, r=document) => r.querySelector(s);
+const nf  = (n, d=0) => new Intl.NumberFormat('es-MX',{minimumFractionDigits:d, maximumFractionDigits:d}).format(n);
+const usd  = (v, d=0) => (v<0?'−':'') + '$' + nf(Math.abs(v), d);
+const usdS = (v, d=0) => (v>=0?'+':'−') + '$' + nf(Math.abs(v), d);
+const pct  = (v, d=1) => (v>=0?'+':'−') + nf(Math.abs(v*100), d) + '%';
+const pctP = (v, d=1) => nf(v*100, d) + '%';
+const cls  = v => v > 0 ? 'pos' : v < 0 ? 'neg' : '';
+
+let META_D = null;      // meta.json
+let DIA = new Map();    // 'YYYY-MM-DD' -> {total, q_BTC, ...}
+let MESES = [];         // 'YYYY-MM' ordenados
+let BANDA = null;       // banda seleccionada
+let CAL = null;         // primer dia del mes visible
+
+// Lo que se lleva el inversor de un dolar bruto del avispero.
+const factor = () => (BANDA / META_D.banco) * META_D.reparto;
+
+// ── Cabecera de la banda ─────────────────────────────────────────────────────
+function pintarBanda(){
+  const f = factor(), q = BANDA / META_D.banco;
+  const bruto = META_D.bruto * q, inv = bruto * META_D.reparto;
+
+  $$('#bCuota').textContent = `${pctP(q,2)} del pastel`;
+  $$('#cifras').innerHTML = [
+    ['Capital', usd(BANDA), ''],
+    ['Bruto del periodo', usdS(bruto), cls(bruto)],
+    ['Se lleva la plataforma', usdS(bruto*(1-META_D.reparto)), ''],
+    ['Se lleva el inversor', usdS(inv), cls(inv)],
+    ['Retorno', pct(inv/BANDA), cls(inv)],
+    ['Su peor racha', '−' + usd(META_D.dd*f), '']
+  ].map(([k,v,c]) => `<div class="cif"><div class="k">${k}</div><div class="v ${c}">${v}</div></div>`).join('');
+
+  const t = $$('#bTotal');
+  t.textContent = `Periodo: ${usdS(inv)}`;
+  t.classList.toggle('positive', inv > 0); t.classList.toggle('negative', inv < 0);
+
+  $$('#labEscala').textContent =
+    `unidad al ${pctP(META_D.escala,0)} del tope de producción`;
+  $$('#labMes').textContent = `lo que le toca a la banda de ${usd(BANDA)}`;
+}
+
+// ── Calendario ───────────────────────────────────────────────────────────────
+function renderCalendar(){
+  const f = factor();
+  const year = CAL.getUTCFullYear(), month = CAL.getUTCMonth();
+  const first = new Date(Date.UTC(year, month, 1));
+  const dow = first.getUTCDay();
+  const start = new Date(Date.UTC(year, month, 1 + (dow === 0 ? -6 : 1 - dow)));
+
+  $$('#calTitle').textContent = new Intl.DateTimeFormat('es-MX',
+    {month:'long', year:'numeric', timeZone:'UTC'}).format(first);
+
+  const diasMes = new Date(Date.UTC(year, month+1, 0)).getUTCDate();
+  let maxAbs = 0;
+  for(let d=1; d<=diasMes; d++){
+    const k = new Date(Date.UTC(year, month, d)).toISOString().slice(0,10);
+    maxAbs = Math.max(maxAbs, Math.abs(DIA.get(k)?.total || 0));
+  }
+
+  const grid = $$('#calGrid');
+  grid.innerHTML = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom']
+    .map(n => `<div class="cal-dow">${n}</div>`).join('');
+
+  let mes = 0, conDatos = 0;
+  for(let i=0; i<42; i++){
+    const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()+i));
+    const k = d.toISOString().slice(0,10);
+    const enMes = d.getUTCMonth() === month;
+    const rec = DIA.get(k);
+    const v = (rec?.total || 0) * f;
+    if(enMes){ mes += v; if(rec) conDatos++; }
+
+    const a = maxAbs > 0 ? (0.18 + 0.72 * Math.min(1, Math.abs(rec?.total || 0) / maxAbs)) : 0;
+    let bg, bd;
+    if(v > 0)      { bg = `rgba(31,185,112,${a})`;  bd = 'rgba(31,185,112,.55)'; }
+    else if(v < 0) { bg = `rgba(224,82,107,${a})`;  bd = 'rgba(224,82,107,.55)'; }
+    else           { bg = '#1a2234';                bd = 'var(--border)'; }
+
+    const div = document.createElement('div');
+    div.className = 'day' + (enMes ? '' : ' other');
+    div.style.background  = v === 0 ? bg : `linear-gradient(180deg, ${bg}, rgba(0,0,0,.08))`;
+    div.style.borderColor = bd;
+    const detalle = rec ? META_D.patas
+      .filter(p => Math.abs(rec[p.id] || 0) > 0.005)
+      .map(p => `${p.etiqueta} ${usdS((rec[p.id]||0)*f, 2)}`).join(' · ') : '';
+    if(detalle) div.title = `${k}\n${detalle}`;
+    const vivo = rec && rec.n_patas > 0;
+    div.innerHTML = `<div class="n">${d.getUTCDate()}</div>` +
+      `<div class="u">${vivo ? usdS(v, Math.abs(v) < 100 ? 2 : 0) : '—'}</div>` +
+      `<div class="t">${vivo ? rec.n_patas + (rec.n_patas === 1 ? ' pata' : ' patas')
+                             : (rec ? 'sin fills' : '')}</div>`;
+    grid.appendChild(div);
+  }
+
+  const b = $$('#bMes');
+  b.textContent = `Mes: ${usdS(mes)}`;
+  b.classList.toggle('positive', mes > 0); b.classList.toggle('negative', mes < 0);
+  $$('#bDias').textContent = `${conDatos} días con apuestas`;
+
+  const ymActual = `${year}-${String(month+1).padStart(2,'0')}`;
+  $$('#prevMonth').disabled = ymActual <= MESES[0];
+  $$('#nextMonth').disabled = ymActual >= MESES[MESES.length-1];
+}
+
+// ── Tabla mensual ────────────────────────────────────────────────────────────
+function renderMeses(){
+  const f = factor();
+  $$('#tMeses thead').innerHTML = '<tr><th>Mes</th>' +
+    META_D.patas.map(p => `<th>${p.etiqueta}</th>`).join('') +
+    '<th>Bruto avispero</th><th>Suyo</th></tr>';
+  $$('#tMeses tbody').innerHTML = META_D.mensual.map(r => {
+    const suyo = r.p * f, parcial = r.m === META_D.mes_parcial;
+    return `<tr><td>${r.m}${parcial ? ' *' : ''}</td>` +
+      META_D.patas.map(p => { const v = (META_D.mensual_pata[p.id][r.m] || 0) * f;
+        return `<td class="${cls(v)}">${usdS(v, 0)}</td>`; }).join('') +
+      `<td class="${cls(r.p)}">${usdS(r.p)}</td>` +
+      `<td class="${cls(suyo)}"><b>${usdS(suyo)}</b></td></tr>`;
+  }).join('') +
+  `<tr><td colspan="${META_D.patas.length+3}" style="color:var(--muted);font-size:12px;text-align:left">
+    * ${META_D.mes_parcial} está incompleto: la cadena corta el ${META_D.periodo.fin}, el día en que
+    producción tomó el relevo.</td></tr>`;
+}
+
+// ── Tabla de patas ───────────────────────────────────────────────────────────
+function renderPatas(){
+  const q = BANDA / META_D.banco;
+  $$('#tPatas thead').innerHTML =
+    '<tr><th>Pata</th><th>Unidad del avispero</th><th>Tope producción</th>' +
+    '<th>Lo que pone esta banda</th><th>Señales</th><th>Fills</th><th>Acierto</th><th>Cuota del PnL</th></tr>';
+  $$('#tPatas tbody').innerHTML = META_D.patas.map(p => `<tr>
+    <td>${p.etiqueta}</td>
+    <td>${usd(p.unidad, 2)}</td>
+    <td>${usd(p.tope_prod)}</td>
+    <td><b>${usd(p.unidad*q, 2)}</b></td>
+    <td>${nf(p.apuestas)}</td><td>${nf(p.fills)}</td>
+    <td>${pctP(p.acierto)}</td><td>${pctP(p.cuota)}</td></tr>`).join('');
+}
+
+// ── Letra pequeña ────────────────────────────────────────────────────────────
+function renderLetra(){
+  const gorda = [...META_D.patas].sort((a,b) => b.cuota - a.cuota)[0];
+  $$('#letra').innerHTML = [
+    `<b>Es OOS ciego, no un track record.</b> Cada bag gobierna sólo el tramo posterior a su corte,
+     así que nada se apoya en datos que el buscador ya había visto. Aun así es simulación.`,
+    `<b>Unidad plana, sin compuesto.</b> Se fija una vez desde el banco y no se mueve en todo el
+     periodo: ni ratchet del pico, ni reinversión.`,
+    `<b>El reparto es ${pctP(META_D.reparto,0)} / ${pctP(1-META_D.reparto,0)} y es simétrico.</b>
+     La plataforma se come su mitad de las pérdidas igual que de las ganancias, así que el inversor
+     ve exactamente la mitad de la curva, arriba y abajo.`,
+    `<b>El % de retorno es el mismo para todas las bandas.</b> El reparto es a prorrata: lo que
+     cambia entre una banda y otra son los dólares, nunca el porcentaje.`,
+    `<b>La comisión es la cota baja.</b> El simulador cobra comisión de <i>taker</i> en el 100% de
+     los fills, cuando en vivo el 78% son <i>maker</i> y pagan cero. Por ese lado el resultado real
+     estaría por encima.`,
+    `<b>El fill es medido, no supuesto.</b> Sale del libro y la cinta reales, con la regla del fill
+     de ETH 15m y el minuto extra de hourly. Las ventanas con el libro congelado o de un solo lado
+     se descartan, y con ellas cae un 13,5% de las señales de BTC 15m.`,
+    `<b>El resultado está concentrado.</b> ${gorda.etiqueta} aporta el ${pctP(gorda.cuota)} del PnL
+     con sólo ${nf(gorda.apuestas)} señales. Con esa muestra su contribución tiene bastante más
+     margen de error que el resto.`,
+    `<b>La capacidad es el techo del avispero.</b> Los topes existen porque el libro de Polymarket
+     no absorbe más. Con este banco de ${usd(META_D.banco)} y la unidad al ${pctP(META_D.escala,0)}
+     del tope hay margen; meter mucho más banco no compraría más apuestas, sólo diluiría a todos.`,
+    `<b>${META_D.meses_rojo} meses en rojo de ${META_D.mensual.length}.</b> Peor mes
+     ${usdS(META_D.peor_mes)} bruto, mejor ${usdS(META_D.mejor_mes)}. La peor racha bruta fue
+     ${usd(META_D.dd)}, el ${pctP(META_D.dd_pct)} del banco.`
+  ].map(t => `<li>${t}</li>`).join('');
+}
+
+function pintar(){ pintarBanda(); renderCalendar(); renderMeses(); renderPatas(); }
+
+// ── Carga ────────────────────────────────────────────────────────────────────
+function fetchCSV(path){
+  return new Promise((res,rej) => Papa.parse(path, {
+    header:true, dynamicTyping:true, download:true, skipEmptyLines:true,
+    complete:o => res(o.data), error:e => rej(e)
+  }));
+}
+
+(async function boot(){
+  try{
+    const [meta, filas] = await Promise.all([
+      fetch(META).then(r => { if(!r.ok) throw new Error(`meta ${r.status}`); return r.json(); }),
+      fetchCSV(CSV)
+    ]);
+    META_D = meta; BANDA = meta.bandas[0];
+
+    for(const r of filas){
+      if(!r.fecha) continue;
+      const k = (r.fecha instanceof Date) ? r.fecha.toISOString().slice(0,10) : String(r.fecha).slice(0,10);
+      const rec = {total: Number(r.total) || 0, n_patas: 0};
+      for(const p of meta.patas){ rec[p.id] = Number(r[p.id]) || 0;
+                                  if(Math.abs(rec[p.id]) > 0.005) rec.n_patas++; }
+      DIA.set(k, rec);
+    }
+    MESES = [...new Set([...DIA.keys()])].map(k => k.slice(0,7)).sort();
+    MESES = [...new Set(MESES)];
+
+    $$('#segBanda').innerHTML = meta.bandas.map((b,i) =>
+      `<button data-b="${b}" class="${i===0?'active':''}">${usd(b)}</button>`).join('');
+    $$('#segBanda').addEventListener('click', ev => {
+      const b = ev.target.closest('button[data-b]'); if(!b) return;
+      BANDA = Number(b.dataset.b);
+      [...ev.currentTarget.children].forEach(x => x.classList.toggle('active', x === b));
+      pintar();
+    });
+
+    const ult = MESES[MESES.length-1].split('-');
+    CAL = new Date(Date.UTC(+ult[0], +ult[1]-1, 1));
+    $$('#prevMonth').addEventListener('click', () => {
+      CAL = new Date(Date.UTC(CAL.getUTCFullYear(), CAL.getUTCMonth()-1, 1)); renderCalendar(); });
+    $$('#nextMonth').addEventListener('click', () => {
+      CAL = new Date(Date.UTC(CAL.getUTCFullYear(), CAL.getUTCMonth()+1, 1)); renderCalendar(); });
+
+    renderLetra();
+    $$('#sello').textContent =
+      `Cadena ciega ${meta.periodo.ini} → ${meta.periodo.fin} · ${meta.periodo.meses} meses · ` +
+      `${nf(meta.apuestas)} señales, ${nf(meta.fills)} llenadas · banco ${usd(meta.banco)} · ` +
+      `unidad al ${pctP(meta.escala,0)} del tope · generado ${meta.generado}`;
+    pintar();
+  }catch(e){
+    document.querySelector('.wrap').insertAdjacentHTML('beforeend',
+      `<div class="panel" style="border-color:var(--bad);color:var(--bad);margin-top:8px">
+         No se pudieron cargar los datos: ${e.message}. Hace falta servir la carpeta por HTTP
+         (<code>python3 -m http.server</code>), no abrir el fichero directamente.</div>`);
+  }
+})();
+</script>
+</body>
+</html>
