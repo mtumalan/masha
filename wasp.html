@@ -81,7 +81,6 @@
       <h1>M.A.S.H.A. <small>Avispero</small></h1>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span id="bMes" class="badge">Mes: —</span>
-        <span id="bTotal" class="badge">Periodo: —</span>
       </div>
     </header>
 
@@ -139,29 +138,44 @@ let CAL = null;         // primer dia del mes visible
 // Lo que se lleva el inversor de un dolar bruto del avispero.
 const factor = () => (BANDA / META_D.banco) * META_D.reparto;
 
+// ── El mes visible ───────────────────────────────────────────────────────────
+// El payout se liquida mes a mes, asi que el mes ES el periodo: todo lo que se
+// muestra arriba sale de los dias de este mes y de ningun otro.
+function mesVisible(){
+  const year = CAL.getUTCFullYear(), month = CAL.getUTCMonth();
+  const diasMes = new Date(Date.UTC(year, month+1, 0)).getUTCDate();
+  let bruto = 0, acum = 0, pico = 0, dd = 0, dias = 0;
+  for(let d=1; d<=diasMes; d++){
+    const rec = DIA.get(new Date(Date.UTC(year, month, d)).toISOString().slice(0,10));
+    if(!rec) continue;
+    bruto += rec.total;
+    acum  += rec.total;
+    pico   = Math.max(pico, acum);
+    dd     = Math.max(dd, pico - acum);      // peor racha DENTRO del mes
+    if(rec.n_patas > 0) dias++;
+  }
+  const ym = `${year}-${String(month+1).padStart(2,'0')}`;
+  return {bruto, dd, dias, ym, parcial: ym === META_D.mes_parcial};
+}
+
 // ── Cabecera de la banda ─────────────────────────────────────────────────────
-function pintarBanda(){
+function pintarBanda(M){
   const f = factor(), q = BANDA / META_D.banco;
-  const bruto = META_D.bruto * q, inv = bruto * META_D.reparto;
+  const bruto = M.bruto * q, inv = bruto * META_D.reparto;
 
   $$('#bCuota').textContent = `${pctP(q,2)} del pastel`;
   $$('#cifras').innerHTML = [
     ['Capital', usd(BANDA), ''],
-    ['Bruto del periodo', usdS(bruto), cls(bruto)],
-    ['Se lleva la plataforma', usdS(bruto*(1-META_D.reparto)), ''],
-    ['Se lleva el inversor', usdS(inv), cls(inv)],
-    ['Retorno', pct(inv/BANDA), cls(inv)],
-    ['Su peor racha', '−' + usd(META_D.dd*f), '']
+    ['Bruto del mes', usdS(bruto, 2), cls(bruto)],
+    ['Se lleva la plataforma', usdS(bruto*(1-META_D.reparto), 2), ''],
+    ['Se lleva el inversor', usdS(inv, 2), cls(inv)],
+    ['Retorno del mes', pct(inv/BANDA, 2), cls(inv)],
+    ['Peor racha del mes', M.dd > 0 ? '−' + usd(M.dd*f, 2) : '—', '']
   ].map(([k,v,c]) => `<div class="cif"><div class="k">${k}</div><div class="v ${c}">${v}</div></div>`).join('');
-
-  const t = $$('#bTotal');
-  t.textContent = `Periodo: ${usdS(inv)}`;
-  t.classList.toggle('positive', inv > 0); t.classList.toggle('negative', inv < 0);
-
 }
 
 // ── Calendario ───────────────────────────────────────────────────────────────
-function renderCalendar(){
+function renderCalendar(M){
   const f = factor();
   const year = CAL.getUTCFullYear(), month = CAL.getUTCMonth();
   const first = new Date(Date.UTC(year, month, 1));
@@ -169,7 +183,7 @@ function renderCalendar(){
   const start = new Date(Date.UTC(year, month, 1 + (dow === 0 ? -6 : 1 - dow)));
 
   $$('#calTitle').textContent = new Intl.DateTimeFormat('es-MX',
-    {month:'long', year:'numeric', timeZone:'UTC'}).format(first);
+    {month:'long', year:'numeric', timeZone:'UTC'}).format(first) + (M.parcial ? ' *' : '');
 
   const diasMes = new Date(Date.UTC(year, month+1, 0)).getUTCDate();
   let maxAbs = 0;
@@ -182,14 +196,14 @@ function renderCalendar(){
   grid.innerHTML = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom']
     .map(n => `<div class="cal-dow">${n}</div>`).join('');
 
-  let mes = 0, conDatos = 0;
+  let conDatos = 0;
   for(let i=0; i<42; i++){
     const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()+i));
     const k = d.toISOString().slice(0,10);
     const enMes = d.getUTCMonth() === month;
     const rec = DIA.get(k);
     const v = (rec?.total || 0) * f;
-    if(enMes){ mes += v; if(rec) conDatos++; }
+    if(enMes && rec && rec.n_patas > 0) conDatos++;
 
     const a = maxAbs > 0 ? (0.18 + 0.72 * Math.min(1, Math.abs(rec?.total || 0) / maxAbs)) : 0;
     let bg, bd;
@@ -213,17 +227,20 @@ function renderCalendar(){
     grid.appendChild(div);
   }
 
+  const mes = M.bruto * factor();
   const b = $$('#bMes');
-  b.textContent = `Mes: ${usdS(mes)}`;
+  b.textContent = `Mes: ${usdS(mes, 2)}`;
   b.classList.toggle('positive', mes > 0); b.classList.toggle('negative', mes < 0);
-  $$('#bDias').textContent = `${conDatos} días con apuestas`;
+  $$('#bDias').textContent = M.parcial
+    ? `${conDatos} días · * mes incompleto, corta el ${META_D.periodo.fin}`
+    : `${conDatos} días con apuestas`;
 
   const ymActual = `${year}-${String(month+1).padStart(2,'0')}`;
   $$('#prevMonth').disabled = ymActual <= MESES[0];
   $$('#nextMonth').disabled = ymActual >= MESES[MESES.length-1];
 }
 
-function pintar(){ pintarBanda(); renderCalendar(); }
+function pintar(){ const M = mesVisible(); pintarBanda(M); renderCalendar(M); }
 
 // ── Carga ────────────────────────────────────────────────────────────────────
 function fetchCSV(path){
@@ -264,9 +281,9 @@ function fetchCSV(path){
     const ult = MESES[MESES.length-1].split('-');
     CAL = new Date(Date.UTC(+ult[0], +ult[1]-1, 1));
     $$('#prevMonth').addEventListener('click', () => {
-      CAL = new Date(Date.UTC(CAL.getUTCFullYear(), CAL.getUTCMonth()-1, 1)); renderCalendar(); });
+      CAL = new Date(Date.UTC(CAL.getUTCFullYear(), CAL.getUTCMonth()-1, 1)); pintar(); });
     $$('#nextMonth').addEventListener('click', () => {
-      CAL = new Date(Date.UTC(CAL.getUTCFullYear(), CAL.getUTCMonth()+1, 1)); renderCalendar(); });
+      CAL = new Date(Date.UTC(CAL.getUTCFullYear(), CAL.getUTCMonth()+1, 1)); pintar(); });
 
     pintar();
   }catch(e){
