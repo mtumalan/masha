@@ -53,16 +53,8 @@
     .cif .v{font-size:20px;font-weight:700;margin-top:3px}
     .pos{color:var(--good)} .neg{color:var(--bad)}
 
-    table{border-collapse:collapse;width:100%;font-size:13px}
-    th,td{padding:7px 10px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-    th{font-size:11px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border)}
-    td{border-bottom:1px solid #161c2a}
-    tbody tr:last-child td{border-bottom:none}
-    th:first-child,td:first-child{text-align:left}
     .aviso{border-left:3px solid var(--warn);padding:10px 12px;background:#0d111a;border-radius:0 12px 12px 0;color:var(--muted);font-size:12.5px}
     .aviso b{color:var(--ink)}
-    ul.chico{margin:0;padding-left:18px;color:var(--muted);font-size:12.5px}
-    ul.chico li{margin-bottom:6px}
     ul.chico b{color:var(--ink)}
 
     @media (max-width: 900px){
@@ -121,28 +113,6 @@
       <div class="cal-scroll"><div class="cal-grid" id="calGrid"></div></div>
     </section>
 
-    <div class="panel">
-      <div class="tira" style="justify-content:space-between;margin-bottom:8px">
-        <h2 style="margin:0;font-size:15px">Mes a mes</h2>
-        <span class="lab" id="labMes">lo que le toca a esta banda</span>
-      </div>
-      <div style="overflow:auto"><table id="tMeses"><thead></thead><tbody></tbody></table></div>
-    </div>
-
-    <div class="panel">
-      <div class="tira" style="justify-content:space-between;margin-bottom:8px">
-        <h2 style="margin:0;font-size:15px">Lo que esta banda pone en cada apuesta</h2>
-        <span class="lab" id="labEscala">—</span>
-      </div>
-      <div style="overflow:auto"><table id="tPatas"><thead></thead><tbody></tbody></table></div>
-    </div>
-
-    <div class="panel">
-      <h2 style="margin:0 0 8px;font-size:15px">Letra pequeña</h2>
-      <ul class="chico" id="letra"></ul>
-    </div>
-
-    <div class="lab" id="sello" style="margin:10px 2px 24px"></div>
   </div>
 
 <script>
@@ -189,9 +159,6 @@ function pintarBanda(){
   t.textContent = `Periodo: ${usdS(inv)}`;
   t.classList.toggle('positive', inv > 0); t.classList.toggle('negative', inv < 0);
 
-  $$('#labEscala').textContent =
-    `unidad al ${pctP(META_D.escala,0)} del tope de producción`;
-  $$('#labMes').textContent = `lo que le toca a la banda de ${usd(BANDA)}`;
 }
 
 // ── Calendario ───────────────────────────────────────────────────────────────
@@ -257,72 +224,7 @@ function renderCalendar(){
   $$('#nextMonth').disabled = ymActual >= MESES[MESES.length-1];
 }
 
-// ── Tabla mensual ────────────────────────────────────────────────────────────
-function renderMeses(){
-  const f = factor();
-  $$('#tMeses thead').innerHTML = '<tr><th>Mes</th>' +
-    META_D.patas.map(p => `<th>${p.etiqueta}</th>`).join('') +
-    '<th>Bruto avispero</th><th>Suyo</th></tr>';
-  $$('#tMeses tbody').innerHTML = META_D.mensual.map(r => {
-    const suyo = r.p * f, parcial = r.m === META_D.mes_parcial;
-    return `<tr><td>${r.m}${parcial ? ' *' : ''}</td>` +
-      META_D.patas.map(p => { const v = (META_D.mensual_pata[p.id][r.m] || 0) * f;
-        return `<td class="${cls(v)}">${usdS(v, 0)}</td>`; }).join('') +
-      `<td class="${cls(r.p)}">${usdS(r.p)}</td>` +
-      `<td class="${cls(suyo)}"><b>${usdS(suyo)}</b></td></tr>`;
-  }).join('') +
-  `<tr><td colspan="${META_D.patas.length+3}" style="color:var(--muted);font-size:12px;text-align:left">
-    * ${META_D.mes_parcial} está incompleto: la cadena corta el ${META_D.periodo.fin}, el día en que
-    producción tomó el relevo.</td></tr>`;
-}
-
-// ── Tabla de patas ───────────────────────────────────────────────────────────
-function renderPatas(){
-  const q = BANDA / META_D.banco;
-  $$('#tPatas thead').innerHTML =
-    '<tr><th>Pata</th><th>Unidad del avispero</th><th>Tope producción</th>' +
-    '<th>Lo que pone esta banda</th><th>Señales</th><th>Fills</th><th>Acierto</th><th>Cuota del PnL</th></tr>';
-  $$('#tPatas tbody').innerHTML = META_D.patas.map(p => `<tr>
-    <td>${p.etiqueta}</td>
-    <td>${usd(p.unidad, 2)}</td>
-    <td>${usd(p.tope_prod)}</td>
-    <td><b>${usd(p.unidad*q, 2)}</b></td>
-    <td>${nf(p.apuestas)}</td><td>${nf(p.fills)}</td>
-    <td>${pctP(p.acierto)}</td><td>${pctP(p.cuota)}</td></tr>`).join('');
-}
-
-// ── Letra pequeña ────────────────────────────────────────────────────────────
-function renderLetra(){
-  const gorda = [...META_D.patas].sort((a,b) => b.cuota - a.cuota)[0];
-  $$('#letra').innerHTML = [
-    `<b>Es OOS ciego, no un track record.</b> Cada bag gobierna sólo el tramo posterior a su corte,
-     así que nada se apoya en datos que el buscador ya había visto. Aun así es simulación.`,
-    `<b>Unidad plana, sin compuesto.</b> Se fija una vez desde el banco y no se mueve en todo el
-     periodo: ni ratchet del pico, ni reinversión.`,
-    `<b>El reparto es ${pctP(META_D.reparto,0)} / ${pctP(1-META_D.reparto,0)} y es simétrico.</b>
-     La plataforma se come su mitad de las pérdidas igual que de las ganancias, así que el inversor
-     ve exactamente la mitad de la curva, arriba y abajo.`,
-    `<b>El % de retorno es el mismo para todas las bandas.</b> El reparto es a prorrata: lo que
-     cambia entre una banda y otra son los dólares, nunca el porcentaje.`,
-    `<b>La comisión es la cota baja.</b> El simulador cobra comisión de <i>taker</i> en el 100% de
-     los fills, cuando en vivo el 78% son <i>maker</i> y pagan cero. Por ese lado el resultado real
-     estaría por encima.`,
-    `<b>El fill es medido, no supuesto.</b> Sale del libro y la cinta reales, con la regla del fill
-     de ETH 15m y el minuto extra de hourly. Las ventanas con el libro congelado o de un solo lado
-     se descartan, y con ellas cae un 13,5% de las señales de BTC 15m.`,
-    `<b>El resultado está concentrado.</b> ${gorda.etiqueta} aporta el ${pctP(gorda.cuota)} del PnL
-     con sólo ${nf(gorda.apuestas)} señales. Con esa muestra su contribución tiene bastante más
-     margen de error que el resto.`,
-    `<b>La capacidad es el techo del avispero.</b> Los topes existen porque el libro de Polymarket
-     no absorbe más. Con este banco de ${usd(META_D.banco)} y la unidad al ${pctP(META_D.escala,0)}
-     del tope hay margen; meter mucho más banco no compraría más apuestas, sólo diluiría a todos.`,
-    `<b>${META_D.meses_rojo} meses en rojo de ${META_D.mensual.length}.</b> Peor mes
-     ${usdS(META_D.peor_mes)} bruto, mejor ${usdS(META_D.mejor_mes)}. La peor racha bruta fue
-     ${usd(META_D.dd)}, el ${pctP(META_D.dd_pct)} del banco.`
-  ].map(t => `<li>${t}</li>`).join('');
-}
-
-function pintar(){ pintarBanda(); renderCalendar(); renderMeses(); renderPatas(); }
+function pintar(){ pintarBanda(); renderCalendar(); }
 
 // ── Carga ────────────────────────────────────────────────────────────────────
 function fetchCSV(path){
@@ -367,11 +269,6 @@ function fetchCSV(path){
     $$('#nextMonth').addEventListener('click', () => {
       CAL = new Date(Date.UTC(CAL.getUTCFullYear(), CAL.getUTCMonth()+1, 1)); renderCalendar(); });
 
-    renderLetra();
-    $$('#sello').textContent =
-      `Cadena ciega ${meta.periodo.ini} → ${meta.periodo.fin} · ${meta.periodo.meses} meses · ` +
-      `${nf(meta.apuestas)} señales, ${nf(meta.fills)} llenadas · banco ${usd(meta.banco)} · ` +
-      `unidad al ${pctP(meta.escala,0)} del tope · generado ${meta.generado}`;
     pintar();
   }catch(e){
     document.querySelector('.wrap').insertAdjacentHTML('beforeend',
