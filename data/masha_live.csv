@@ -614,3 +614,4 @@ timestamp,model,symbol,pred,win,stake,pnl,units,risked,paper
 2026-10-10T19:15:00+00:00,quarterhour,ETHUSDT,-1,0,0.00,0.00,0.000000,0.000000,0
 2026-10-10T19:30:00+00:00,quarterhour,ETHUSDT,-1,0,0.00,0.00,0.000000,0.000000,0
 2026-10-10T19:45:00+00:00,quarterhour,ETHUSDT,-1,1,0.00,0.00,0.000000,0.000000,0
+2026-10-10T21:15:00+00:00,quarterhour,ETHUSDT,1,1,0.00,0.00,0.000000,0.000000,0
