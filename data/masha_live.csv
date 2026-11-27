@@ -1144,3 +1144,4 @@ timestamp,model,symbol,pred,win,stake,pnl,units,risked,paper
 2026-11-26T17:14:13+00:00,sheila-precio_fecha-vivo,ETH,-1,0,6.45,-0.86,-0.004301,0.032256,0
 2026-11-26T17:17:21+00:00,sheila-precio_fecha-vivo,ETH,-1,0,3.02,-3.05,-0.015247,0.015113,0
 2026-11-26T17:17:22+00:00,sheila-precio_fecha-vivo,ETH,-1,0,10.00,-10.10,-0.050488,0.050000,0
+2026-11-27T17:14:46+00:00,sheila-precio_fecha-vivo,BTC,-1,0,10.00,-10.10,-0.050481,0.050000,0
